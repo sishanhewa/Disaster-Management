@@ -86,10 +86,26 @@ class AlertService extends BaseService<CustomAlert> {
     }
 }
 
+class PredictionService {
+    async getAllStatus(): Promise<any[]> {
+        const res = await axios.get('http://104.208.67.128:8000/stations/status/all');
+        return res.data;
+    }
+    async getHistory(stationId: number, days: number = 1): Promise<any[]> {
+        const res = await axios.get(`http://104.208.67.128:8000/stations/${stationId}/history?days=${days}`);
+        return res.data;
+    }
+    async getAccuracy(stationId: number): Promise<any[]> {
+        const res = await axios.get(`http://104.208.67.128:8000/stations/${stationId}/accuracy`);
+        return res.data;
+    }
+}
+
 export const api = {
     camps: new CampService(),
     needs: new NeedService(),
     pledges: new PledgeService(),
     collectionPoints: new CollectionPointService(),
-    alerts: new AlertService()
+    alerts: new AlertService(),
+    predictions: new PredictionService()
 };

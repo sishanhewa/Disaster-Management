@@ -32,7 +32,7 @@ const GUIDES = [
 ];
 
 export default function OfflineGuides() {
-    const handleDownload = (guideId: string, title: string) => {
+    const handleDownload = (_guideId: string, title: string) => {
         // In a real application, this would trigger a download of a PDF or save to IndexedDB/ServiceWorker cache
         // For this prototype, we simulate a download action
         alert(`Downloading offline guide: ${title}... \nThis document will be available even without an internet connection.`);

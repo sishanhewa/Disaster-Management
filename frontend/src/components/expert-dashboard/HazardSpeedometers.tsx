@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 // Custom SVG half-doughnut gauge since we don't have a charting library for it
 const Gauge = ({ value, label, color }: { value: number; label: string; color: string }) => {
@@ -45,23 +45,27 @@ const Gauge = ({ value, label, color }: { value: number; label: string; color: s
 const HazardSpeedometers = ({ data, loading }: { data: any[], loading: boolean }) => {
     if (loading) return <div className="text-slate-400 text-sm p-4 animate-pulse">Calibrating instruments...</div>;
 
-    // Let's pick 4 districts to show
-    const displayDistricts = ['Colombo', 'Gampaha', 'Kalutara', 'Galle'];
+    // Dynamically pick the top 4 stations with the highest current water level relative to their major flood levels
+    // Since we don't have percentages natively, we'll calculate (current / major * 100)
+    const sortedStations = [...data].sort((a, b) => {
+        const aRatio = a.major_flood_level ? (a.current_level / a.major_flood_level) : 0;
+        const bRatio = b.major_flood_level ? (b.current_level / b.major_flood_level) : 0;
+        return bRatio - aRatio; // Descending
+    }).slice(0, 4);
 
     // Transform real data into percentages for the gauge
-    const gauges = displayDistricts.map(dist => {
-        const record = data.find(d => d.locationName === dist && d.hazardType === 'Water Level');
-        if (!record) return { label: dist, val: 0, color: '#22c55e' };
-
-        // Max water level roughly 5m.
-        let percentage = Math.min(100, (record.measuredValue / 5.0) * 100);
+    const gauges = sortedStations.map(record => {
+        let percentage = 0;
+        if (record.major_flood_level && record.major_flood_level > 0) {
+            percentage = Math.min(100, (record.current_level / record.major_flood_level) * 100);
+        }
 
         let color = '#22c55e'; // Green
         if (percentage > 80) color = '#ef4444'; // Red
         else if (percentage > 60) color = '#f97316'; // Orange
         else if (percentage > 40) color = '#eab308'; // Yellow
 
-        return { label: dist, val: Math.round(percentage), color };
+        return { label: record.station_name, val: Math.round(percentage), color };
     });
 
     return (

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import axios from 'axios';
+import { api } from '../../services/api';
 import { AlertTriangle, Activity, Map as MapIcon, Clock, HardDriveDownload } from 'lucide-react';
 import SmartMap from './SmartMap';
 import HazardSpeedometers from './HazardSpeedometers';
@@ -20,8 +20,9 @@ const ExpertDashboard = () => {
     useEffect(() => {
         const fetchLiveData = async () => {
             try {
-                const response = await axios.get('http://localhost:8080/api/disaster-data/latest');
-                setLiveData(response.data);
+                // Fetch live from the Python Prediction Engine instead of local mock DB
+                const response = await api.predictions.getAllStatus();
+                setLiveData(response);
             } catch (error) {
                 console.error("Failed to fetch disaster data", error);
             } finally {
@@ -30,6 +31,7 @@ const ExpertDashboard = () => {
         };
 
         fetchLiveData();
+        // Since prediction cycles run roughly every 15m, polling at 1m is safe.
         const interval = setInterval(fetchLiveData, 60000);
         return () => clearInterval(interval);
     }, []);
@@ -91,15 +93,21 @@ const ExpertDashboard = () => {
                             <AlertTriangle size={20} /> Active AI Warnings
                         </h2>
                         <div className="space-y-3">
-                            {liveData.filter(d => d.dangerLevel === 'Major Flood' || d.dangerLevel === 'Red Alert').length === 0 ? (
-                                <p className="text-sm text-slate-400 italic">No critical hazards detected at this time.</p>
+                            {liveData.filter(d => d.risk_12h === 'Major Flood' || d.risk_3h === 'Major Flood' || d.risk_12h === 'Minor Flood' || d.risk_3h === 'Minor Flood').length === 0 ? (
+                                <p className="text-sm text-slate-400 italic">No critical hazards detected by AI at this time.</p>
                             ) : (
-                                liveData.filter(d => d.dangerLevel === 'Major Flood' || d.dangerLevel === 'Red Alert').map((alert, idx) => (
-                                    <div key={idx} className="bg-red-900/40 border border-red-500/50 p-3 rounded-md">
-                                        <p className="font-bold text-red-400 text-sm">Critical: {alert.locationName}</p>
-                                        <p className="text-xs text-red-200 mt-1">{alert.hazardType} reaching dangerous levels ({alert.measuredValue} {alert.unit}).</p>
-                                    </div>
-                                ))
+                                liveData.filter(d => d.risk_12h === 'Major Flood' || d.risk_3h === 'Major Flood' || d.risk_12h === 'Minor Flood' || d.risk_3h === 'Minor Flood').map((alert, idx) => {
+                                    const isRed = alert.risk_12h === 'Major Flood' || alert.risk_3h === 'Major Flood';
+                                    const highestRisk = isRed ? 'Major Flood' : 'Minor Flood';
+                                    return (
+                                        <div key={idx} className={`${isRed ? 'bg-red-900/40 border-red-500/50 text-red-400' : 'bg-orange-900/40 border-orange-500/50 text-orange-400'} border p-3 rounded-md`}>
+                                            <p className="font-bold text-sm">Target: {alert.station_name} Array</p>
+                                            <p className={`text-xs mt-1 ${isRed ? 'text-red-200' : 'text-orange-200'}`}>
+                                                {highestRisk} Risk predicted. 12H Peak Model: {alert.pred_12h.toFixed(2)}m (Minor: {alert.minor_flood_level}m / Major: {alert.major_flood_level}m).
+                                            </p>
+                                        </div>
+                                    )
+                                })
                             )}
                         </div>
                     </div>

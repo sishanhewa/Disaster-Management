@@ -1,4 +1,4 @@
-import React from 'react';
+
 import DisasterChatbot from './DisasterChatbot';
 import OfflineGuides from './OfflineGuides';
 import NewsScraper from './NewsScraper';

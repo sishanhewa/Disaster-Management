@@ -3,7 +3,7 @@ import {
     AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
     ResponsiveContainer, ReferenceLine, Legend
 } from 'recharts';
-import { Calendar, Clock, Droplets, CloudRain, TrendingUp } from 'lucide-react';
+import { Calendar, Clock, Droplets, CloudRain } from 'lucide-react';
 
 // ----- Mock Historical Data Generator -----
 // Generates deterministic but varied mock data for any date

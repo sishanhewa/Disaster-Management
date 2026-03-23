@@ -1,5 +1,5 @@
-import React from 'react';
-import { MapPin, Droplets, Activity, AlertTriangle, X } from 'lucide-react';
+
+import { MapPin, Droplets, X } from 'lucide-react';
 
 interface SelectedFeaturePanelProps {
     attributes: Record<string, any>;

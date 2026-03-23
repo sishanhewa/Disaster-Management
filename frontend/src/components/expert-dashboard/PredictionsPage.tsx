@@ -1,82 +1,134 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-    AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-    Tooltip, ResponsiveContainer, ReferenceLine, Legend
+    AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
+    Tooltip, ResponsiveContainer, ReferenceLine, Legend, Brush
 } from 'recharts';
-import { TrendingUp, AlertTriangle, Droplets, CloudRain, Thermometer, Wind, Target, Activity } from 'lucide-react';
-
-// ---- Mock Prediction Data Generator ----
-const BASINS = [
-    { name: 'Kelani Ganga', alert: 3.0, minor: 4.0, major: 5.5, currentLevel: 1.8 },
-    { name: 'Nilwala Ganga', alert: 1.4, minor: 1.7, major: 2.8, currentLevel: 0.6 },
-    { name: 'Kalu Ganga', alert: 3.5, minor: 5.0, major: 6.5, currentLevel: 2.1 },
-    { name: 'Mahaweli Ganga', alert: 3.5, minor: 5.0, major: 6.0, currentLevel: 1.5 },
-    { name: 'Gin Ganga', alert: 2.0, minor: 3.0, major: 4.5, currentLevel: 0.9 },
-    { name: 'Aththanagalu Oya', alert: 3.3, minor: 4.4, major: 5.5, currentLevel: 0.4 },
-];
-
-function generateForecast(basin: typeof BASINS[0], scenario: string) {
-    const hours = [];
-    const base = basin.currentLevel;
-    const riskMult = scenario === 'heavy_rain' ? 2.2 : scenario === 'cyclone' ? 3.0 : 1.0;
-
-    for (let h = 0; h <= 72; h++) {
-        const t = h / 72;
-        // Simulate rising then plateau/drop
-        const rise = Math.sin(t * Math.PI) * riskMult;
-        const noise = (Math.sin(h * 0.7) * 0.15 + Math.cos(h * 0.3) * 0.1) * riskMult;
-        const level = base + rise + noise;
-        const rain = scenario === 'normal'
-            ? Math.max(0, 3 * Math.sin(h * 0.3) + 2)
-            : Math.max(0, (8 + 15 * Math.sin(h * 0.2)) * (riskMult / 2));
-
-        const d = new Date();
-        d.setHours(d.getHours() + h);
-
-        hours.push({
-            time: h % 6 === 0 ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit' }) : '',
-            hour: h,
-            predicted_level: +level.toFixed(2),
-            confidence_high: +(level + 0.4 * riskMult).toFixed(2),
-            confidence_low: +Math.max(0, level - 0.3 * riskMult).toFixed(2),
-            rainfall: +rain.toFixed(1),
-        });
-    }
-    return hours;
-}
-
-// Risk assessment
-function assessRisk(forecast: any[], basin: typeof BASINS[0]) {
-    const maxLevel = Math.max(...forecast.map(f => f.predicted_level));
-    const peakHour = forecast.find(f => f.predicted_level === maxLevel)?.hour || 0;
-    const exceedsAlert = forecast.filter(f => f.predicted_level >= basin.alert).length;
-    const exceedsMinor = forecast.filter(f => f.predicted_level >= basin.minor).length;
-    const exceedsMajor = forecast.filter(f => f.predicted_level >= basin.major).length;
-
-    let riskLevel: 'LOW' | 'MODERATE' | 'HIGH' | 'CRITICAL' = 'LOW';
-    let riskColor = 'text-emerald-400';
-    let riskBg = 'bg-emerald-500/10 border-emerald-500/30';
-    if (exceedsMajor > 0) { riskLevel = 'CRITICAL'; riskColor = 'text-red-400'; riskBg = 'bg-red-500/10 border-red-500/30'; }
-    else if (exceedsMinor > 0) { riskLevel = 'HIGH'; riskColor = 'text-orange-400'; riskBg = 'bg-orange-500/10 border-orange-500/30'; }
-    else if (exceedsAlert > 0) { riskLevel = 'MODERATE'; riskColor = 'text-yellow-400'; riskBg = 'bg-yellow-500/10 border-yellow-500/30'; }
-
-    return { maxLevel, peakHour, exceedsAlert, exceedsMinor, exceedsMajor, riskLevel, riskColor, riskBg };
-}
+import { TrendingUp, AlertTriangle, Droplets, Thermometer, Wind, Target, Activity, CloudRain } from 'lucide-react';
+import { api } from '../../services/api';
 
 const PredictionsPage = () => {
-    const [selectedBasinIdx, setSelectedBasinIdx] = useState(0);
-    const [scenario, setScenario] = useState('normal');
+    const [stations, setStations] = useState<any[]>([]);
+    const [selectedStationIdx, setSelectedStationIdx] = useState(0);
+    const [loading, setLoading] = useState(true);
+    
+    // Existing History States
+    const [history, setHistory] = useState<any[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    
+    // New Accuracy States
+    const [accuracyChartData, setAccuracyChartData] = useState<any[]>([]);
+    const [accuracyLoading, setAccuracyLoading] = useState(false);
 
-    const basin = BASINS[selectedBasinIdx];
-    const forecast = useMemo(() => generateForecast(basin, scenario), [selectedBasinIdx, scenario]);
-    const risk = useMemo(() => assessRisk(forecast, basin), [forecast, basin]);
+    useEffect(() => {
+        api.predictions.getAllStatus().then(data => {
+            setStations(data);
+            setLoading(false);
+        }).catch(err => {
+            console.error(err);
+            setLoading(false);
+        });
+    }, []);
 
-    // All basins overview
-    const basinOverviews = BASINS.map(b => {
-        const fc = generateForecast(b, scenario);
-        const r = assessRisk(fc, b);
-        return { ...b, ...r };
-    });
+    const basin = stations[selectedStationIdx];
+
+    // Fetch History & Accuracy whenever the selected station changes
+    useEffect(() => {
+        if (!basin) return;
+        
+        // 1. Fetch History
+        setHistoryLoading(true);
+        api.predictions.getHistory(basin.station_id, 1).then(data => {
+            const mappedHistory = data.map((d: any) => {
+                const date = new Date(d.observed_at + 'Z');
+                return {
+                    time: date.toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' }),
+                    timestamp: date.getTime(),
+                    history_level: d.water_level,
+                    predicted_level: null
+                };
+            });
+            mappedHistory.sort((a: any, b: any) => a.timestamp - b.timestamp);
+            setHistory(mappedHistory);
+            setHistoryLoading(false);
+        }).catch(err => {
+            console.error(err);
+            setHistoryLoading(false);
+        });
+
+        // 2. Fetch Accuracy Drift
+        setAccuracyLoading(true);
+        api.predictions.getAccuracy(basin.station_id).then(data => {
+            const accuracyMap = new Map();
+            data.forEach((d: any) => {
+                const date = new Date(d.target_time + 'Z');
+                // Formatting to match "Mar 22 05:01"
+                const month = date.toLocaleString('en-US', { timeZone: 'Asia/Colombo', month: 'short' });
+                const day = date.toLocaleString('en-US', { timeZone: 'Asia/Colombo', day: '2-digit' });
+                const hrs = date.toLocaleString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', hour12: false });
+                const mins = date.toLocaleString('en-US', { timeZone: 'Asia/Colombo', minute: '2-digit' });
+                const timeKey = `${month} ${day} ${hrs}:${mins}`;
+                
+                const timestamp = date.getTime();
+                
+                if (!accuracyMap.has(timeKey)) {
+                    accuracyMap.set(timeKey, { time: timeKey, timestamp, actual: d.actual });
+                }
+                const entry = accuracyMap.get(timeKey);
+                if (d.horizon_hours === 3) entry.predicted_3h = d.predicted;
+                if (d.horizon_hours === 12) entry.predicted_12h = d.predicted;
+            });
+            
+            const combinedAccuracy = Array.from(accuracyMap.values()).sort((a: any, b: any) => a.timestamp - b.timestamp);
+            setAccuracyChartData(combinedAccuracy);
+            setAccuracyLoading(false);
+        }).catch(err => {
+            console.error(err);
+            setAccuracyLoading(false);
+        });
+
+    }, [basin]);
+
+    const chartData = useMemo(() => {
+        if (!basin) return [];
+        
+        const nowTime = new Date();
+        const future3H = new Date(nowTime.getTime() + 3 * 60 * 60 * 1000);
+        const future12H = new Date(nowTime.getTime() + 12 * 60 * 60 * 1000);
+
+        const currentPoint = { 
+            time: 'Now', 
+            history_level: basin.current_level, 
+            predicted_level: basin.current_level 
+        };
+
+        const futurePoint1 = { 
+            time: '+3H (' + future3H.toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' }) + ')', 
+            history_level: null, 
+            predicted_level: basin.pred_3h 
+        };
+
+        const futurePoint2 = { 
+            time: '+12H (' + future12H.toLocaleTimeString('en-US', { timeZone: 'Asia/Colombo', hour: '2-digit', minute: '2-digit' }) + ')', 
+            history_level: null, 
+            predicted_level: basin.pred_12h 
+        };
+
+        return [...history, currentPoint, futurePoint1, futurePoint2];
+    }, [basin, history]);
+
+    if (loading || !basin) {
+        return <div className="text-white p-6">Loading Predictions...</div>;
+    }
+
+    const maxLevel = Math.max(basin.current_level, basin.pred_3h, basin.pred_12h);
+    const isCritical = basin.risk_12h === 'Major Flood' || basin.risk_3h === 'Major Flood';
+    const isHigh = basin.risk_12h === 'Minor Flood' || basin.risk_3h === 'Minor Flood';
+    
+    let riskLevel = 'LOW';
+    let riskColor = 'text-emerald-400';
+    let riskBg = 'bg-emerald-500/10 border-emerald-500/30';
+    if (isCritical) { riskLevel = 'CRITICAL'; riskColor = 'text-red-400'; riskBg = 'bg-red-500/10 border-red-500/30'; }
+    else if (isHigh) { riskLevel = 'HIGH'; riskColor = 'text-orange-400'; riskBg = 'bg-orange-500/10 border-orange-500/30'; }
 
     return (
         <div className="bg-slate-900 text-slate-100 min-h-[calc(100vh-80px)] font-sans">
@@ -86,114 +138,133 @@ const PredictionsPage = () => {
                     <TrendingUp size={32} /> Flood Prediction Engine
                 </h1>
                 <p className="text-purple-300/70 mt-1">
-                    AI-powered 72-hour predictive forecasts for all major river basins
+                    AI-powered predictive forecasts combined with historical accuracy evaluation.
                 </p>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
-                {/* Left: Basin Overview Cards */}
+                {/* Left: Station Overview Cards */}
                 <div className="lg:col-span-3 bg-slate-800 border-r border-slate-700 p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-180px)]">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">All Basins — Risk Overview</h3>
+                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Monitored Stations</h3>
 
-                    {/* Scenario Selector */}
-                    <select
-                        className="w-full bg-slate-900 border border-slate-700 text-xs rounded-lg px-3 py-2 text-slate-300 focus:outline-none focus:border-purple-500 mb-3"
-                        value={scenario}
-                        onChange={(e) => setScenario(e.target.value)}
-                    >
-                        <option value="normal">🌤 Normal Conditions</option>
-                        <option value="heavy_rain">🌧 Heavy Rainfall Scenario</option>
-                        <option value="cyclone">🌀 Cyclone Impact Scenario</option>
-                    </select>
-
-                    {basinOverviews.map((b, i) => (
+                    {stations.map((s, i) => {
+                        const isSCritical = s.risk_12h === 'Major Flood' || s.risk_3h === 'Major Flood';
+                        const isSHigh = s.risk_12h === 'Minor Flood' || s.risk_3h === 'Minor Flood';
+                        let sRiskLevel = isSCritical ? 'CRITICAL' : isSHigh ? 'HIGH' : 'LOW';
+                        let sRiskColor = isSCritical ? 'text-red-400' : isSHigh ? 'text-orange-400' : 'text-emerald-400';
+                        let sRiskBg = isSCritical ? 'bg-red-500/10 border-red-500/30' : isSHigh ? 'bg-orange-500/10 border-orange-500/30' : 'bg-emerald-500/10 border-emerald-500/30';
+                        return (
                         <button
-                            key={b.name}
-                            onClick={() => setSelectedBasinIdx(i)}
-                            className={`w-full text-left rounded-xl p-3 border transition ${i === selectedBasinIdx ? 'bg-purple-600/20 border-purple-500/50' : 'bg-slate-900/60 border-slate-700 hover:border-slate-600'
+                            key={s.station_id}
+                            onClick={() => setSelectedStationIdx(i)}
+                            className={`w-full text-left rounded-xl p-3 border transition ${i === selectedStationIdx ? 'bg-purple-600/20 border-purple-500/50' : 'bg-slate-900/60 border-slate-700 hover:border-slate-600'
                                 }`}
                         >
                             <div className="flex justify-between items-start">
-                                <span className="text-sm font-bold text-slate-200">{b.name}</span>
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${b.riskBg} ${b.riskColor}`}>
-                                    {b.riskLevel}
+                                <span className="text-sm font-bold text-slate-200">{s.station_name}</span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${sRiskBg} ${sRiskColor}`}>
+                                    {sRiskLevel}
                                 </span>
                             </div>
                             <div className="flex gap-3 mt-2 text-[10px] text-slate-500">
-                                <span>Now: <span className="text-slate-300 font-bold">{b.currentLevel}m</span></span>
-                                <span>Peak: <span className={`font-bold ${b.riskColor}`}>{b.maxLevel.toFixed(1)}m</span></span>
-                                <span>in ~{b.peakHour}h</span>
-                            </div>
-                            {/* Mini risk bar */}
-                            <div className="mt-1.5 h-1.5 bg-slate-700 rounded-full overflow-hidden">
-                                <div className="h-1.5 rounded-full transition-all duration-500" style={{
-                                    width: `${Math.min(100, (b.maxLevel / b.major) * 100)}%`,
-                                    backgroundColor: b.riskLevel === 'CRITICAL' ? '#ef4444' : b.riskLevel === 'HIGH' ? '#f97316' : b.riskLevel === 'MODERATE' ? '#eab308' : '#22c55e'
-                                }} />
+                                <span>Now: <span className="text-slate-300 font-bold">{s.current_level}m</span></span>
+                                <span>Peak: <span className={`font-bold ${sRiskColor}`}>{Math.max(s.current_level, s.pred_3h, s.pred_12h).toFixed(2)}m</span></span>
                             </div>
                         </button>
-                    ))}
+                    )})}
                 </div>
 
                 {/* Center: Main Forecast Charts */}
                 <div className="lg:col-span-6 p-6 space-y-5 overflow-y-auto max-h-[calc(100vh-180px)]">
                     {/* Risk Banner */}
-                    <div className={`rounded-xl p-4 border ${risk.riskBg} flex items-start gap-3`}>
-                        <AlertTriangle size={24} className={risk.riskColor} />
+                    <div className={`rounded-xl p-4 border ${riskBg} flex items-start gap-3`}>
+                        <AlertTriangle size={24} className={riskColor} />
                         <div>
-                            <h3 className={`text-lg font-black ${risk.riskColor}`}>{risk.riskLevel} RISK — {basin.name}</h3>
+                            <h3 className={`text-lg font-black ${riskColor}`}>{riskLevel} RISK — {basin.station_name} ({basin.river_basin})</h3>
                             <p className="text-sm text-slate-400 mt-1">
-                                Peak predicted level: <span className="text-white font-bold">{risk.maxLevel.toFixed(2)}m</span> in ~{risk.peakHour} hours.
-                                {risk.exceedsMajor > 0 && <span className="text-red-400"> ⚠ Exceeds major flood level for {risk.exceedsMajor}h!</span>}
-                                {risk.exceedsMinor > 0 && risk.exceedsMajor === 0 && <span className="text-orange-400"> Minor flooding expected for {risk.exceedsMinor}h.</span>}
-                                {risk.exceedsAlert > 0 && risk.exceedsMinor === 0 && <span className="text-yellow-400"> Alert level crossed for {risk.exceedsAlert}h.</span>}
+                                Peak predicted level: <span className="text-white font-bold">{maxLevel.toFixed(2)}m</span> over the next 12 hours.
+                                {basin.risk_12h !== 'Normal' && <span className="text-orange-400 ml-1"> 12H Risk: {basin.risk_12h}.</span>}
                             </p>
                         </div>
                     </div>
 
                     {/* Water Level Prediction Chart */}
                     <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                        <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-1.5">
-                            <Droplets size={14} className="text-cyan-400" /> 72-Hour Water Level Forecast
-                        </h4>
-                        <div className="h-56">
+                        <div className="flex justify-between items-center mb-3">
+                            <h4 className="text-sm font-bold text-slate-300 flex items-center gap-1.5">
+                                <Droplets size={14} className="text-cyan-400" /> Past 24 Hours + 12-Hour Forecast
+                            </h4>
+                            {historyLoading && <span className="text-xs text-slate-500 animate-pulse">Fetching history...</span>}
+                        </div>
+                        <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={forecast} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} />
+                                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} interval="preserveEnd" minTickGap={30} />
                                     <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: 8, fontSize: 12 }} />
                                     <Legend wrapperStyle={{ fontSize: 10 }} />
-                                    <ReferenceLine y={basin.major} stroke="#ef4444" strokeWidth={2} label={{ value: 'Major Flood', fill: '#ef4444', fontSize: 9 }} />
-                                    <ReferenceLine y={basin.minor} stroke="#f97316" strokeDasharray="4 3" label={{ value: 'Minor Flood', fill: '#f97316', fontSize: 9 }} />
-                                    <ReferenceLine y={basin.alert} stroke="#eab308" strokeDasharray="4 3" label={{ value: 'Alert', fill: '#eab308', fontSize: 9 }} />
-                                    {/* Confidence band */}
-                                    <Area type="monotone" dataKey="confidence_high" stroke="none" fill="#a855f7" fillOpacity={0.08} name="Upper Bound" />
-                                    <Area type="monotone" dataKey="confidence_low" stroke="none" fill="#a855f7" fillOpacity={0.08} name="Lower Bound" />
-                                    {/* Main prediction line */}
-                                    <Area type="monotone" dataKey="predicted_level" stroke="#a855f7" strokeWidth={2} fill="#a855f7" fillOpacity={0.15} name="Predicted Level (m)" />
+                                    <ReferenceLine y={basin.major_flood_level} stroke="#ef4444" strokeWidth={2} label={{ value: 'Major Flood', fill: '#ef4444', fontSize: 9 }} />
+                                    <ReferenceLine y={basin.minor_flood_level} stroke="#f97316" strokeDasharray="4 3" label={{ value: 'Minor Flood', fill: '#f97316', fontSize: 9 }} />
+                                    
+                                    {/* History Line */}
+                                    <Area type="monotone" dataKey="history_level" stroke="#38bdf8" strokeWidth={2} fill="#38bdf8" fillOpacity={0.15} name="Historical Level (m)" isAnimationActive={false} />
+                                    
+                                    {/* Future Prediction Line */}
+                                    <Area type="monotone" dataKey="predicted_level" stroke="#a855f7" strokeWidth={3} strokeDasharray="5 5" fill="#a855f7" fillOpacity={0.15} name="Predicted Level (m)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
 
-                    {/* Rainfall Forecast */}
+                    {/* 3H Accuracy Evaluation Chart */}
                     <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                        <h4 className="text-sm font-bold text-slate-300 mb-3 flex items-center gap-1.5">
-                            <CloudRain size={14} className="text-blue-400" /> Predicted Rainfall
-                        </h4>
-                        <div className="h-36">
+                        <div className="flex justify-between items-center mb-3">
+                            <h4 className="text-sm font-bold text-slate-300 flex items-center gap-1.5">
+                                <Activity size={14} className="text-emerald-400" /> 3H Historic Prediction Accuracy
+                            </h4>
+                            {accuracyLoading && <span className="text-xs text-slate-500 animate-pulse">Fetching accuracy...</span>}
+                        </div>
+                        <div className="h-80">
                             <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={forecast.filter((_, i) => i % 3 === 0)} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                                <LineChart data={accuracyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} />
-                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} />
+                                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} interval="preserveEnd" minTickGap={30} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: 8, fontSize: 12 }} />
-                                    <Bar dataKey="rainfall" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Rainfall (mm)" />
-                                </BarChart>
+                                    <Legend wrapperStyle={{ fontSize: 10, paddingTop: '10px' }} />
+                                    <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} dot={false} name="Actual Recorded" isAnimationActive={false} />
+                                    <Line type="monotone" dataKey="predicted_3h" stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="3H AI Prediction" />
+                                    <Brush dataKey="time" height={25} stroke="#334155" fill="#0f172a" tickFormatter={() => ''} />
+                                </LineChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
+
+                    {/* 12H Accuracy Evaluation Chart */}
+                    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                        <div className="flex justify-between items-center mb-3">
+                            <h4 className="text-sm font-bold text-slate-300 flex items-center gap-1.5">
+                                <Activity size={14} className="text-purple-400" /> 12H Historic Prediction Accuracy
+                            </h4>
+                            {accuracyLoading && <span className="text-xs text-slate-500 animate-pulse">Fetching accuracy...</span>}
+                        </div>
+                        <div className="h-80">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={accuracyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                    <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} interval="preserveEnd" minTickGap={30} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
+                                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: 8, fontSize: 12 }} />
+                                    <Legend wrapperStyle={{ fontSize: 10, paddingTop: '10px' }} />
+                                    <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} dot={false} name="Actual Recorded" isAnimationActive={false} />
+                                    <Line type="monotone" dataKey="predicted_12h" stroke="#a855f7" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="12H AI Prediction" />
+                                    <Brush dataKey="time" height={25} stroke="#334155" fill="#0f172a" tickFormatter={() => ''} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+
                 </div>
 
                 {/* Right: Metrics & Recommendations */}
@@ -203,85 +274,55 @@ const PredictionsPage = () => {
                     <div className="grid grid-cols-2 gap-2">
                         <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
                             <Droplets size={14} className="text-cyan-400 mx-auto mb-1" />
-                            <p className="text-[10px] text-slate-500">Water Level</p>
-                            <p className="text-lg font-black text-cyan-300">{basin.currentLevel}m</p>
+                            <p className="text-[10px] text-slate-500">Current Level</p>
+                            <p className="text-lg font-black text-cyan-300">{basin.current_level}m</p>
                         </div>
                         <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
                             <Target size={14} className="text-purple-400 mx-auto mb-1" />
                             <p className="text-[10px] text-slate-500">Predicted Peak</p>
-                            <p className={`text-lg font-black ${risk.riskColor}`}>{risk.maxLevel.toFixed(1)}m</p>
+                            <p className={`text-lg font-black ${riskColor}`}>{maxLevel.toFixed(2)}m</p>
                         </div>
                         <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
                             <Thermometer size={14} className="text-orange-400 mx-auto mb-1" />
-                            <p className="text-[10px] text-slate-500">Temperature</p>
-                            <p className="text-lg font-black text-orange-300">29°C</p>
+                            <p className="text-[10px] text-slate-500">+3H Forecast</p>
+                            <p className="text-lg font-black text-orange-300">{basin.pred_3h.toFixed(2)}m</p>
                         </div>
                         <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
                             <Wind size={14} className="text-slate-400 mx-auto mb-1" />
-                            <p className="text-[10px] text-slate-500">Wind Speed</p>
-                            <p className="text-lg font-black text-slate-300">18 km/h</p>
+                            <p className="text-[10px] text-slate-500">+12H Risk</p>
+                            <p className="text-sm font-black text-slate-300">{basin.risk_12h}</p>
+                        </div>
+                        <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
+                            <CloudRain size={14} className="text-blue-400 mx-auto mb-1" />
+                            <p className="text-[10px] text-slate-500">Current Rain</p>
+                            <p className="text-lg font-black text-blue-300">{basin.rainfall_mm}mm</p>
+                        </div>
+                        <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
+                            <CloudRain size={14} className="text-indigo-400 mx-auto mb-1" />
+                            <p className="text-[10px] text-slate-500">24H Rainfall</p>
+                            <p className="text-lg font-black text-indigo-300">{basin.rainfall_24h}mm</p>
                         </div>
                     </div>
 
                     {/* Threshold Levels */}
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Alert Thresholds</h3>
                     <div className="space-y-2">
-                        <div className="flex justify-between items-center bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-                            <span className="text-xs text-yellow-400 font-bold">Alert Level</span>
-                            <span className="text-sm font-black text-yellow-300">{basin.alert}m</span>
-                        </div>
                         <div className="flex justify-between items-center bg-orange-500/10 border border-orange-500/20 rounded-lg px-3 py-2">
                             <span className="text-xs text-orange-400 font-bold">Minor Flood</span>
-                            <span className="text-sm font-black text-orange-300">{basin.minor}m</span>
+                            <span className="text-sm font-black text-orange-300">{basin.minor_flood_level}m</span>
                         </div>
                         <div className="flex justify-between items-center bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                             <span className="text-xs text-red-400 font-bold">Major Flood</span>
-                            <span className="text-sm font-black text-red-300">{basin.major}m</span>
+                            <span className="text-sm font-black text-red-300">{basin.major_flood_level}m</span>
                         </div>
                     </div>
 
-                    {/* AI Recommendations */}
-                    <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">AI Recommendations</h3>
-                    <div className="space-y-2">
-                        {risk.riskLevel === 'CRITICAL' && (
-                            <>
-                                <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-3 text-xs text-red-300">
-                                    <strong>🚨 EVACUATE</strong> — Immediate evacuation recommended for communities within 500m of riverbanks.
-                                </div>
-                                <div className="bg-red-900/30 border border-red-500/30 rounded-lg p-3 text-xs text-red-300">
-                                    <strong>🏥 Activate</strong> emergency shelters and medical teams in {basin.name} basin.
-                                </div>
-                            </>
-                        )}
-                        {risk.riskLevel === 'HIGH' && (
-                            <>
-                                <div className="bg-orange-900/30 border border-orange-500/30 rounded-lg p-3 text-xs text-orange-300">
-                                    <strong>⚠️ Prepare</strong> — Place flood barriers. Alert downstream communities.
-                                </div>
-                                <div className="bg-orange-900/30 border border-orange-500/30 rounded-lg p-3 text-xs text-orange-300">
-                                    <strong>📡 Monitor</strong> water levels every 30 minutes at critical gauges.
-                                </div>
-                            </>
-                        )}
-                        {risk.riskLevel === 'MODERATE' && (
-                            <div className="bg-yellow-900/30 border border-yellow-500/30 rounded-lg p-3 text-xs text-yellow-300">
-                                <strong>👀 Watch</strong> — Conditions approaching alert thresholds. Stay informed and avoid flood-prone zones.
-                            </div>
-                        )}
-                        {risk.riskLevel === 'LOW' && (
-                            <div className="bg-emerald-900/30 border border-emerald-500/30 rounded-lg p-3 text-xs text-emerald-300">
-                                <strong>✅ Safe</strong> — No significant flood risk predicted for the next 72 hours.
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Model Info */}
                     <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-3 mt-4">
                         <p className="text-[10px] text-slate-500 uppercase tracking-widest mb-1 flex items-center gap-1">
                             <Activity size={10} /> Prediction Model
                         </p>
-                        <p className="text-xs text-slate-400">LSTM Neural Network v2.1</p>
-                        <p className="text-[10px] text-slate-500 mt-1">Trained on 15 years of historical hydrostation data. Accuracy: 89.3% (±0.3m).</p>
+                        <p className="text-xs text-slate-400">Live API Inference</p>
+                        <p className="text-[10px] text-slate-500 mt-1">Trained on features extracted via FastAPI / XGBoost backend.</p>
                         <p className="text-[10px] text-slate-500 mt-0.5">Last updated: {new Date().toLocaleString()}</p>
                     </div>
                 </div>
