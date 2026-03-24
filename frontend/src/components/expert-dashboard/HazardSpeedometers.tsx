@@ -57,7 +57,7 @@ const HazardSpeedometers = ({ data, loading }: { data: any[], loading: boolean }
     const gauges = sortedStations.map(record => {
         let percentage = 0;
         if (record.major_flood_level && record.major_flood_level > 0) {
-            percentage = Math.min(100, (record.current_level / record.major_flood_level) * 100);
+            percentage = Math.max(0, Math.min(100, (record.current_level / record.major_flood_level) * 100));
         }
 
         let color = '#22c55e'; // Green

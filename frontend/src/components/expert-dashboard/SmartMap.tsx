@@ -3,6 +3,9 @@ import WebMap from '@arcgis/core/WebMap';
 import MapView from '@arcgis/core/views/MapView';
 import PopupTemplate from '@arcgis/core/PopupTemplate';
 import FeatureLayer from '@arcgis/core/layers/FeatureLayer';
+import LayerList from '@arcgis/core/widgets/LayerList';
+import BasemapGallery from '@arcgis/core/widgets/BasemapGallery';
+import Expand from '@arcgis/core/widgets/Expand';
 import '@arcgis/core/assets/esri/themes/dark/main.css';
 
 interface SmartMapProps {
@@ -49,6 +52,30 @@ const SmartMap = ({ onFeatureSelected }: SmartMapProps) => {
                     }
                 });
             });
+
+            // --- Add Layer Toggles (Operational Layers) ---
+            const layerList = new LayerList({
+                view: view
+            });
+            const layerListExpand = new Expand({
+                view: view,
+                content: layerList,
+                expanded: false,
+                expandTooltip: "Toggle Data Layers"
+            });
+            view.ui.add(layerListExpand, 'top-right');
+
+            // --- Add Basemap Gallery (Names, Rivers, Terrain) ---
+            const basemapGallery = new BasemapGallery({
+                view: view
+            });
+            const bgExpand = new Expand({
+                view: view,
+                content: basemapGallery,
+                expanded: false,
+                expandTooltip: "Change Base Map (Hide/Show Rivers/Names)"
+            });
+            view.ui.add(bgExpand, 'top-right');
 
             // Wire up click → left panel
             view.on('click', async (event) => {

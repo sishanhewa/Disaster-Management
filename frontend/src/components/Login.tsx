@@ -31,21 +31,19 @@ const Login: React.FC = () => {
                 <div>
                     <label className="block font-bold text-slate-300 mb-1">Email Address</label>
                     <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                        className="w-full border border-slate-600 bg-slate-700 text-slate-100 placeholder-slate-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="donor@test.com or manager@test.com" />
+                        className="w-full border border-slate-600 bg-slate-700 text-slate-100 placeholder-slate-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Enter your email" />
                 </div>
                 <div>
                     <label className="block font-bold text-slate-300 mb-1">Password</label>
                     <input type="password" value={password} onChange={e => setPassword(e.target.value)} required
-                        className="w-full border border-slate-600 bg-slate-700 text-slate-100 placeholder-slate-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="password" />
+                        className="w-full border border-slate-600 bg-slate-700 text-slate-100 placeholder-slate-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Enter your password" />
                 </div>
                 <button type="submit" className="w-full bg-blue-600 text-white font-bold py-2 rounded hover:bg-blue-500 transition">
                     Login
                 </button>
             </form>
-            <div className="mt-4 text-sm text-slate-400 text-center">
-                <p>Demo Accounts:</p>
-                <p>Donor: donor@test.com / password</p>
-                <p>Manager: manager@test.com / password</p>
+            <div className="mt-4 text-sm text-slate-500 text-center">
+                <p>Authorized personnel only. Contact Admin for new camp allocations.</p>
             </div>
         </div>
     );

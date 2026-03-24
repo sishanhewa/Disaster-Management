@@ -46,6 +46,13 @@ public class ApiController {
         return needRepository.save(need);
     }
 
+    @PutMapping("/needs/{id}/status")
+    public Need updateNeedStatus(@PathVariable UUID id, @RequestBody java.util.Map<String, Boolean> body) {
+        Need need = needRepository.findById(id).orElseThrow(() -> new RuntimeException("Need not found"));
+        need.setActive(body.get("isActive"));
+        return needRepository.save(need);
+    }
+
     @GetMapping("/needs/manager/{id}")
     public List<Need> getNeedsByManager(@PathVariable UUID id) {
         return needRepository.findByCamp_Manager_Id(id);

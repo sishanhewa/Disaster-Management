@@ -17,6 +17,7 @@ export interface Need {
     quantityReceived: number;
     urgency: string;
     imageBase64?: string;
+    active?: boolean;
     createdAt?: string;
 }
 
@@ -36,6 +37,7 @@ export interface Pledge {
     quantity: number;
     status: string;
     donor?: any;
+    createdAt?: string;
 }
 
 export interface CustomAlert {

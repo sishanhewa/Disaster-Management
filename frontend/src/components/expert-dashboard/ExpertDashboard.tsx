@@ -83,7 +83,7 @@ const ExpertDashboard = () => {
 
                     <div className="bg-slate-800 rounded-xl p-5 border border-slate-700 shadow-lg">
                         <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-blue-300">
-                            <Activity size={20} /> Regional Threat Levels
+                            <Activity size={20} /> Station Threat Levels
                         </h2>
                         <HazardSpeedometers data={liveData} loading={loading} />
                     </div>
@@ -135,7 +135,7 @@ const ExpertDashboard = () => {
                         <h2 className="text-lg font-bold flex items-center gap-2 mb-4 text-purple-400">
                             <Clock size={20} /> Historic Water Levels
                         </h2>
-                        <TimeTravelCharts />
+                        <TimeTravelCharts stations={liveData} />
                     </div>
                 </div>
             </div>

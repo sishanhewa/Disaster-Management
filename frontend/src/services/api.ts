@@ -35,6 +35,10 @@ class NeedService extends BaseService<Need> {
         const res = await axios.get(`${this.endpoint}/manager/${id}`);
         return res.data;
     }
+    async updateStatus(id: string, isActive: boolean): Promise<Need> {
+        const res = await axios.put(`${this.endpoint}/${id}/status`, { isActive });
+        return res.data;
+    }
 }
 
 class PledgeService extends BaseService<Pledge> {

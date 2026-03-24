@@ -4,6 +4,7 @@ import {
     AlertTriangle, Plus, Pencil, Trash2, MapPin, Users, Skull, DollarSign,
     Save, X, CheckCircle, Clock, Siren, Shield, Filter, ChevronDown, ChevronUp
 } from 'lucide-react';
+import IncidentMap from './IncidentMap';
 
 const API = 'http://localhost:8080/api/incidents';
 
@@ -135,6 +136,20 @@ const IncidentTracker = () => {
             </div>
 
             <div className="max-w-7xl mx-auto p-6">
+                
+                {/* Embedded Geospatial Map */}
+                <div className="mb-6">
+                    <IncidentMap 
+                        incidents={filtered} 
+                        isReportingMode={!!editing}
+                        selectedLat={editing?.latitude}
+                        selectedLon={editing?.longitude}
+                        onLocationSelect={(lat, lon) => {
+                            if (editing) setEditing({...editing, latitude: lat, longitude: lon});
+                        }}
+                    />
+                </div>
+
                 {/* Stats Bar */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
                     <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 text-center">
@@ -237,6 +252,15 @@ const IncidentTracker = () => {
                                     onChange={e => setEditing({ ...editing, reportedBy: e.target.value })}
                                     placeholder="Name or agency"
                                     className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-red-500" />
+                            </div>
+                            <div>
+                                <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Location Coordinates</label>
+                                <div className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-400 flex items-center justify-between">
+                                    <span>
+                                        {editing.latitude ? `${editing.latitude.toFixed(4)}, ${editing.longitude?.toFixed(4)}` : 'Click map to pin (Optional)'}
+                                    </span>
+                                    <MapPin size={14} className={editing.latitude ? 'text-blue-400' : 'text-slate-600'} />
+                                </div>
                             </div>
                             <div className="md:col-span-3">
                                 <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Description</label>
