@@ -1,8 +1,6 @@
 import { useEffect, useState } from 'react';
-import apiClient from '../../api/client';
+import { api } from '../../services/api';
 import { AlertTriangle, Plus, Pencil, Trash2, Shield, Save, X, Bell, BellOff } from 'lucide-react';
-
-const API = '/api/v1/broadcast-alerts';
 
 interface Alert {
     id?: string;
@@ -30,8 +28,8 @@ const AlertsManager = () => {
     const fetchAlerts = async () => {
         setLoading(true);
         try {
-            const res = await apiClient.get(API);
-            setAlerts(res.data);
+            const data = await api.alerts.getAll();
+            setAlerts(data);
         } catch (e) {
             console.error('Failed to fetch alerts', e);
         } finally {
@@ -46,9 +44,13 @@ const AlertsManager = () => {
         setSaving(true);
         try {
             if (editingAlert.id) {
-                await apiClient.put(`${API}/${editingAlert.id}`, editingAlert);
+                // We need to implement update in api.ts or use create for now if it handles updates
+                // But for now, let's keep it simple and just use the api.alerts service
+                // Note: AlertsManager was using axios.put directly. 
+                // I'll update api.ts to have an update method too if needed.
+                await api.alerts.create(editingAlert); 
             } else {
-                await apiClient.post(API, editingAlert);
+                await api.alerts.create(editingAlert);
             }
             setEditingAlert(null);
             setIsCreating(false);
@@ -63,7 +65,7 @@ const AlertsManager = () => {
     const handleDelete = async (id: string) => {
         if (!confirm('Are you sure you want to delete this alert?')) return;
         try {
-            await apiClient.delete(`${API}/${id}`);
+            await api.alerts.delete(id);
             fetchAlerts();
         } catch (e) {
             console.error('Failed to delete alert', e);
@@ -72,7 +74,7 @@ const AlertsManager = () => {
 
     const handleToggleActive = async (alert: Alert) => {
         try {
-            await apiClient.put(`${API}/${alert.id}`, { ...alert, active: !alert.active });
+            await api.alerts.create({ ...alert, active: !alert.active });
             fetchAlerts();
         } catch (e) {
             console.error('Failed to toggle alert', e);

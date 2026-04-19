@@ -23,6 +23,11 @@ const HAZARDS = [
     { value: 'Drought', icon: '☀️', color: 'text-orange-400' },
     { value: 'Tsunami', icon: '🌊', color: 'text-red-400' },
     { value: 'Earthquake', icon: '📳', color: 'text-yellow-400' },
+    { value: 'Accident', icon: '🚗', color: 'text-slate-400' },
+    { value: 'Fire', icon: '🔥', color: 'text-orange-500' },
+    { value: 'Building Collapse', icon: '🏗️', color: 'text-slate-500' },
+    { value: 'Epidemic', icon: '🦠', color: 'text-emerald-400' },
+    { value: 'Other', icon: '❓', color: 'text-slate-300' },
 ];
 
 const SEVERITY_CONFIG: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -73,6 +78,7 @@ const IncidentTracker = () => {
     const [filterStatus, setFilterStatus] = useState('all');
     const [filterHazard, setFilterHazard] = useState('all');
     const [expanded, setExpanded] = useState<string | null>(null);
+    const [validationError, setValidationError] = useState<string | null>(null);
 
     const fetchAll = async () => {
         setLoading(true);
@@ -85,8 +91,38 @@ const IncidentTracker = () => {
 
     useEffect(() => { fetchAll(); }, []);
 
+    const validateForm = (): boolean => {
+        setValidationError(null);
+        if (!editing) return false;
+        
+        if (!editing.title || editing.title.trim().length < 3) {
+            setValidationError('Title must be at least 3 characters long.');
+            return false;
+        }
+        if (editing.affectedPeople < 0) {
+            setValidationError('Affected people cannot be negative.');
+            return false;
+        }
+        if (editing.casualties < 0) {
+            setValidationError('Casualties cannot be negative.');
+            return false;
+        }
+        if (editing.damageEstimateLkr < 0) {
+            setValidationError('Damage estimate cannot be negative.');
+            return false;
+        }
+        if (editing.incidentDate) {
+            const date = new Date(editing.incidentDate);
+            if (date.getTime() > Date.now()) {
+                setValidationError('Incident date cannot be in the future.');
+                return false;
+            }
+        }
+        return true;
+    };
+
     const save = async () => {
-        if (!editing?.title || !editing?.district) return;
+        if (!editing || !validateForm()) return;
         setSaving(true);
         try {
             if (editing.id) {
@@ -202,7 +238,7 @@ const IncidentTracker = () => {
                                 </select>
                             </div>
                             <div>
-                                <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Hazard Type *</label>
+                                <label className="text-[10px] text-slate-500 uppercase tracking-widest block mb-1">Incident Type *</label>
                                 <select value={editing.hazardType} onChange={e => setEditing({ ...editing, hazardType: e.target.value })}
                                     className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-red-500">
                                     {HAZARDS.map(h => <option key={h.value} value={h.value}>{h.icon} {h.value}</option>)}
@@ -270,16 +306,23 @@ const IncidentTracker = () => {
                                     className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-red-500 resize-none" />
                             </div>
                         </div>
-                        <div className="flex gap-2 mt-4 justify-end">
-                            <button onClick={() => { setEditing(null); setIsNew(false); }}
-                                className="px-4 py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm flex items-center gap-1 transition">
-                                <X size={14} /> Cancel
-                            </button>
-                            <button onClick={save}
-                                disabled={saving || !editing.title || !editing.district}
-                                className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center gap-2 transition disabled:opacity-50">
-                                <Save size={14} /> {saving ? 'Saving...' : isNew ? 'Create Incident' : 'Update Incident'}
-                            </button>
+                        <div className="flex flex-col gap-2 mt-4 items-end">
+                            {validationError && (
+                                <p className="text-red-400 text-xs font-bold bg-red-500/10 px-3 py-1.5 rounded border border-red-500/20">
+                                    ⚠️ {validationError}
+                                </p>
+                            )}
+                            <div className="flex gap-2">
+                                <button onClick={() => { setEditing(null); setIsNew(false); setValidationError(null); }}
+                                    className="px-4 py-2 rounded-lg border border-slate-600 text-slate-400 hover:text-slate-200 text-sm flex items-center gap-1 transition">
+                                    <X size={14} /> Cancel
+                                </button>
+                                <button onClick={save}
+                                    disabled={saving || !editing.title || !editing.district}
+                                    className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-sm flex items-center gap-2 transition disabled:opacity-50">
+                                    <Save size={14} /> {saving ? 'Saving...' : isNew ? 'Create Incident' : 'Update Incident'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -297,7 +340,7 @@ const IncidentTracker = () => {
                     </select>
                     <select value={filterHazard} onChange={e => setFilterHazard(e.target.value)}
                         className="bg-slate-800 border border-slate-700 text-xs rounded-lg px-3 py-1.5 text-slate-300 focus:outline-none focus:border-blue-500">
-                        <option value="all">All Hazards</option>
+                        <option value="all">All Incident Types</option>
                         {HAZARDS.map(h => <option key={h.value} value={h.value}>{h.icon} {h.value}</option>)}
                     </select>
                     <span className="text-xs text-slate-500 ml-auto">{filtered.length} of {incidents.length} incidents</span>

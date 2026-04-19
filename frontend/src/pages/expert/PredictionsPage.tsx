@@ -74,8 +74,13 @@ const PredictionsPage = () => {
                     accuracyMap.set(timeKey, { time: timeKey, timestamp, actual: d.actual });
                 }
                 const entry = accuracyMap.get(timeKey);
-                if (d.horizon_hours === 3) entry.predicted_3h = d.predicted;
-                if (d.horizon_hours === 12) entry.predicted_12h = d.predicted;
+                
+                // Filter out physically impossible values and extreme noise outliers
+                const isSane = d.predicted != null && d.predicted >= 0 && (d.error == null || d.error < 1.0);
+                if (isSane) {
+                    if (d.horizon_hours === 3 && entry.predicted_3h === undefined) entry.predicted_3h = d.predicted;
+                    if (d.horizon_hours === 12 && entry.predicted_12h === undefined) entry.predicted_12h = d.predicted;
+                }
             });
             
             const combinedAccuracy = Array.from(accuracyMap.values()).sort((a: any, b: any) => a.timestamp - b.timestamp);
@@ -201,7 +206,7 @@ const PredictionsPage = () => {
                                 <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                     <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} interval="preserveEnd" minTickGap={30} />
-                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={['auto', 'auto']} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: 8, fontSize: 12 }} />
                                     <Legend wrapperStyle={{ fontSize: 10 }} />
                                     <ReferenceLine y={basin.major_flood_level} stroke="#ef4444" strokeWidth={2} label={{ value: 'Major Flood', fill: '#ef4444', fontSize: 9 }} />
@@ -230,7 +235,7 @@ const PredictionsPage = () => {
                                 <LineChart data={accuracyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                     <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} interval="preserveEnd" minTickGap={30} />
-                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, basin?.major_flood_level || 5) * 1.2]} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: 8, fontSize: 12 }} />
                                     <Legend wrapperStyle={{ fontSize: 10, paddingTop: '10px' }} />
                                     <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} dot={false} name="Actual Recorded" isAnimationActive={false} />
@@ -254,7 +259,7 @@ const PredictionsPage = () => {
                                 <LineChart data={accuracyChartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
                                     <XAxis dataKey="time" stroke="#94a3b8" fontSize={9} tickLine={false} interval="preserveEnd" minTickGap={30} />
-                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, 'auto']} />
+                                    <YAxis stroke="#94a3b8" fontSize={10} tickLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, basin?.major_flood_level || 5) * 1.2]} />
                                     <Tooltip contentStyle={{ backgroundColor: '#1e293b', borderColor: '#334155', borderRadius: 8, fontSize: 12 }} />
                                     <Legend wrapperStyle={{ fontSize: 10, paddingTop: '10px' }} />
                                     <Line type="monotone" dataKey="actual" stroke="#3b82f6" strokeWidth={2} dot={false} name="Actual Recorded" isAnimationActive={false} />
