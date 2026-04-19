@@ -1,30 +1,48 @@
 package com.sidms.backend.controller;
 
-import com.sidms.backend.model.DisasterIncident;
+import com.sidms.backend.entity.DisasterIncident;
 import com.sidms.backend.repository.DisasterIncidentRepository;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * REST controller for field-reported / ArcGIS-sourced disaster incidents.
+ * Distinct from DisasterWarningController (official government bulletins).
+ * Ported from Disaster-Management-master DisasterIncidentController (/api/incidents → /api/v1/incidents).
+ */
 @RestController
-@RequestMapping("/api/incidents")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/v1/incidents")
 public class DisasterIncidentController {
 
     private final DisasterIncidentRepository repo;
 
+    public DisasterIncidentController(DisasterIncidentRepository repo) {
+        this.repo = repo;
+    }
+
     @GetMapping
-    public List<DisasterIncident> getAll() {
-        return repo.findAllByOrderByIncidentDateDesc();
+    public ResponseEntity<List<DisasterIncident>> getAll() {
+        return ResponseEntity.ok(repo.findAllByOrderByIncidentDateDesc());
     }
 
     @GetMapping("/active")
-    public List<DisasterIncident> getActive() {
-        return repo.findByResponseStatusNotOrderByIncidentDateDesc("resolved");
+    public ResponseEntity<List<DisasterIncident>> getActive() {
+        return ResponseEntity.ok(repo.findByResponseStatusNotOrderByIncidentDateDesc("resolved"));
+    }
+
+    @GetMapping("/district/{district}")
+    public ResponseEntity<List<DisasterIncident>> getByDistrict(@PathVariable String district) {
+        return ResponseEntity.ok(repo.findByDistrictOrderByIncidentDateDesc(district));
+    }
+
+    @GetMapping("/hazard/{hazardType}")
+    public ResponseEntity<List<DisasterIncident>> getByHazard(@PathVariable String hazardType) {
+        return ResponseEntity.ok(repo.findByHazardTypeOrderByIncidentDateDesc(hazardType));
     }
 
     @GetMapping("/{id}")
@@ -35,38 +53,41 @@ public class DisasterIncidentController {
     }
 
     @PostMapping
-    public DisasterIncident create(@RequestBody DisasterIncident incident) {
-        return repo.save(incident);
+    @PreAuthorize("hasAnyRole('ADMIN', 'RESPONDER')")
+    public ResponseEntity<DisasterIncident> create(@RequestBody DisasterIncident incident) {
+        incident.setCreatedAt(LocalDateTime.now());
+        incident.setUpdatedAt(LocalDateTime.now());
+        return ResponseEntity.ok(repo.save(incident));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<DisasterIncident> update(@PathVariable UUID id, @RequestBody DisasterIncident updated) {
-        return repo.findById(id)
-                .map(existing -> {
-                    existing.setTitle(updated.getTitle());
-                    existing.setDistrict(updated.getDistrict());
-                    existing.setHazardType(updated.getHazardType());
-                    existing.setSeverity(updated.getSeverity());
-                    existing.setAffectedPeople(updated.getAffectedPeople());
-                    existing.setCasualties(updated.getCasualties());
-                    existing.setDamageEstimateLkr(updated.getDamageEstimateLkr());
-                    existing.setResponseStatus(updated.getResponseStatus());
-                    existing.setDescription(updated.getDescription());
-                    existing.setLatitude(updated.getLatitude());
-                    existing.setLongitude(updated.getLongitude());
-                    existing.setReportedBy(updated.getReportedBy());
-                    existing.setIncidentDate(updated.getIncidentDate());
-                    return ResponseEntity.ok(repo.save(existing));
-                })
-                .orElse(ResponseEntity.notFound().build());
+    @PreAuthorize("hasAnyRole('ADMIN', 'RESPONDER')")
+    public ResponseEntity<DisasterIncident> update(@PathVariable UUID id,
+                                                    @RequestBody DisasterIncident updated) {
+        return repo.findById(id).map(i -> {
+            i.setTitle(updated.getTitle());
+            i.setDistrict(updated.getDistrict());
+            i.setHazardType(updated.getHazardType());
+            i.setSeverity(updated.getSeverity());
+            i.setAffectedPeople(updated.getAffectedPeople());
+            i.setCasualties(updated.getCasualties());
+            i.setDamageEstimateLkr(updated.getDamageEstimateLkr());
+            i.setResponseStatus(updated.getResponseStatus());
+            i.setDescription(updated.getDescription());
+            i.setLatitude(updated.getLatitude());
+            i.setLongitude(updated.getLongitude());
+            i.setReportedBy(updated.getReportedBy());
+            i.setIncidentDate(updated.getIncidentDate());
+            i.setUpdatedAt(LocalDateTime.now());
+            return ResponseEntity.ok(repo.save(i));
+        }).orElse(ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
-        if (repo.existsById(id)) {
-            repo.deleteById(id);
-            return ResponseEntity.noContent().build();
-        }
-        return ResponseEntity.notFound().build();
+        if (!repo.existsById(id)) return ResponseEntity.notFound().build();
+        repo.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

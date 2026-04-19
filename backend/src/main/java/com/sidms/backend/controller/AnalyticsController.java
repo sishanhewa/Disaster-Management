@@ -1,47 +1,43 @@
 package com.sidms.backend.controller;
 
-import com.sidms.backend.repository.CampRepository;
-import com.sidms.backend.repository.NeedRepository;
-import com.sidms.backend.repository.PledgeRepository;
-import lombok.Data;
-import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import com.sidms.backend.dto.analytics.AnalyticsOverviewResponse;
+import com.sidms.backend.dto.analytics.ForecastAccuracyDto;
+import com.sidms.backend.dto.analytics.ForecastHistoryPointDto;
+import com.sidms.backend.service.AnalyticsService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/analytics")
-@RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@RequestMapping("/api/v1/analytics")
 public class AnalyticsController {
 
-    private final CampRepository campRepository;
-    private final NeedRepository needRepository;
-    private final PledgeRepository pledgeRepository;
+    private final AnalyticsService analyticsService;
 
-    @GetMapping("/summary")
-    public AnalyticsStats getSummary() {
-        AnalyticsStats stats = new AnalyticsStats();
-        stats.setTotalCamps(campRepository.count());
-        stats.setTotalActiveNeeds(needRepository.findByIsActiveTrue().size());
-        stats.setTotalPledges(pledgeRepository.count());
-
-        long totalItemsRequired = needRepository.findAll().stream().mapToInt(n -> n.getQuantityRequired()).sum();
-        long totalItemsPledged = needRepository.findAll().stream().mapToInt(n -> n.getQuantityPledged()).sum();
-
-        stats.setTotalItemsRequired(totalItemsRequired);
-        stats.setTotalItemsPledged(totalItemsPledged);
-
-        return stats;
+    public AnalyticsController(AnalyticsService analyticsService) {
+        this.analyticsService = analyticsService;
     }
-}
 
-@Data
-class AnalyticsStats {
-    private long totalCamps;
-    private long totalActiveNeeds;
-    private long totalPledges;
-    private long totalItemsRequired;
-    private long totalItemsPledged;
+    @GetMapping("/overview/{spatialUnitId}")
+    public ResponseEntity<AnalyticsOverviewResponse> getOverview(@PathVariable UUID spatialUnitId) {
+        return ResponseEntity.ok(analyticsService.getOverview(spatialUnitId));
+    }
+
+    @GetMapping("/forecast-accuracy/{spatialUnitId}")
+    public ResponseEntity<ForecastAccuracyDto> getForecastAccuracy(
+            @PathVariable UUID spatialUnitId,
+            @RequestParam(required = false, defaultValue = "30") Integer days,
+            @RequestParam(required = false, defaultValue = "all") String metric) {
+        return ResponseEntity.ok(analyticsService.getForecastAccuracy(spatialUnitId, days, metric));
+    }
+
+    @GetMapping("/forecast-history/{spatialUnitId}/{metric}")
+    public ResponseEntity<List<ForecastHistoryPointDto>> getForecastHistory(
+            @PathVariable UUID spatialUnitId,
+            @PathVariable String metric,
+            @RequestParam(required = false, defaultValue = "30") Integer days) {
+        return ResponseEntity.ok(analyticsService.getForecastHistoryPoints(spatialUnitId, metric, days));
+    }
 }
