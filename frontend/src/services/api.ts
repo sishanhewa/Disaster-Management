@@ -19,6 +19,10 @@ class BaseService<T> {
         const res = await axios.post(this.endpoint, data);
         return res.data;
     }
+
+    async delete(id: string): Promise<void> {
+        await axios.delete(`${this.endpoint}/${id}`);
+    }
 }
 
 class CampService extends BaseService<Camp> {
@@ -86,6 +90,15 @@ class AlertService extends BaseService<CustomAlert> {
             const newAlert = { ...data, id: Date.now().toString(), active: true, createdAt: new Date().toISOString() } as CustomAlert;
             localAlerts = [newAlert, ...localAlerts];
             return newAlert;
+        }
+    }
+
+    async delete(id: string): Promise<void> {
+        try {
+            await axios.delete(`${this.endpoint}/${id}`);
+        } catch (e) {
+            console.warn("Backend offline, removing alert from local memory.");
+            localAlerts = localAlerts.filter(a => a.id !== id);
         }
     }
 }

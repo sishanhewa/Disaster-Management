@@ -3,6 +3,7 @@ package com.sidms.backend.controller;
 import com.sidms.backend.model.*;
 import com.sidms.backend.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -56,6 +57,15 @@ public class ApiController {
     @GetMapping("/needs/manager/{id}")
     public List<Need> getNeedsByManager(@PathVariable UUID id) {
         return needRepository.findByCamp_Manager_Id(id);
+    }
+
+    @DeleteMapping("/needs/{id}")
+    public ResponseEntity<Void> deleteNeed(@PathVariable UUID id) {
+        if (needRepository.existsById(id)) {
+            needRepository.deleteById(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
     }
 
     // --- PLEDGES ---

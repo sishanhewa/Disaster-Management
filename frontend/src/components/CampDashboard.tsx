@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import type { Camp, Need, Pledge } from '../types';
 import heic2any from 'heic2any';
-import { LayoutDashboard, Megaphone, ClipboardList, Package, CheckCircle, Clock } from 'lucide-react';
+import { LayoutDashboard, Megaphone, ClipboardList, Package, CheckCircle, Clock, Trash2 } from 'lucide-react';
 
 const CampDashboard: React.FC = () => {
     const [camps, setCamps] = useState<Camp[]>([]);
@@ -132,6 +132,17 @@ const CampDashboard: React.FC = () => {
             loadData();
         } catch (e) {
             alert("Failed to update request status.");
+        }
+    };
+
+    const handleDeleteNeed = async (id: string) => {
+        if (!confirm("Permanently delete this request from the database?")) return;
+        try {
+            await api.needs.delete(id);
+            alert("Request deleted successfully.");
+            loadData();
+        } catch (e) {
+            alert("Failed to delete request.");
         }
     };
 
@@ -269,11 +280,19 @@ const CampDashboard: React.FC = () => {
                                             </div>
                                         </div>
                                         
-                                        <button 
-                                            onClick={() => handleToggleNeedStatus(n.id!, n.active!)}
-                                            className={`px-4 py-2 font-bold rounded-lg text-sm transition shadow ${n.active ? 'bg-slate-700 hover:bg-red-600/80 text-white border border-slate-600 hover:border-red-500' : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}`}>
-                                            {n.active ? 'Close Request' : 'Reopen Request'}
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => handleToggleNeedStatus(n.id!, n.active!)}
+                                                className={`px-4 py-2 font-bold rounded-lg text-sm transition shadow ${n.active ? 'bg-slate-700 hover:bg-emerald-600/80 text-white border border-slate-600' : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}`}>
+                                                {n.active ? 'Close Request' : 'Reopen Request'}
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDeleteNeed(n.id!)}
+                                                className="p-2 rounded-lg bg-red-900/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 transition shadow"
+                                                title="Delete permanently">
+                                                <Trash2 size={18} />
+                                            </button>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

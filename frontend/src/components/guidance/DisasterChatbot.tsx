@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 
 // Replace with environment variable in production
-const API_KEY = "AIzaSyDMpIwHOHVcKXNy3BmskvsrB6Fqog3RMGw";
+const API_KEY = "AIzaSyDzOHWSOzMumdBe45DuHuoNcsUS-a6x7_A";
 
 // Initialize Gemini
 const genAI = new GoogleGenerativeAI(API_KEY);

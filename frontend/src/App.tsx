@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { Home, Tent, HeartHandshake, LogOut, BarChart3, Globe, Shield, BookOpen, Activity, Waves, Menu, X, TrendingUp, AlertTriangle } from 'lucide-react';
+import { Home, Tent, HeartHandshake, LogOut, BarChart3, Globe, Shield, BookOpen, Activity, Waves, Menu, X, TrendingUp, AlertTriangle, Search } from 'lucide-react';
 import NeedsRegistry from './components/NeedsRegistry';
 import CampDashboard from './components/CampDashboard';
 import Login from './components/Login';
@@ -17,7 +17,7 @@ import RiverBasinExplorer from './components/expert-dashboard/RiverBasinExplorer
 import PredictionsPage from './components/expert-dashboard/PredictionsPage';
 import AlertsManager from './components/expert-dashboard/AlertsManager';
 import IncidentTracker from './components/expert-dashboard/IncidentTracker';
-
+import MissingPersons from './components/MissingPersons';
 function Navigation() {
   const navigate = useNavigate();
   const [user, setUser] = useState<any>(null);
@@ -44,6 +44,7 @@ function Navigation() {
     { to: '/', label: 'Urgent Needs', icon: <Home size={18} />, color: 'text-white' },
     { to: '/transparency', label: 'Public Wall', icon: <Globe size={18} />, color: 'text-white' },
     { to: '/guidance', label: 'Guidance/News', icon: <BookOpen size={18} />, color: 'text-yellow-200' },
+    { to: '/missing', label: 'Missing Persons', icon: <Search size={18} />, color: 'text-pink-200' },
   ];
 
   const adminLinks = [
@@ -210,7 +211,7 @@ function App() {
           <Route path="/alerts" element={<AlertsManager />} />
           <Route path="/incidents" element={<IncidentTracker />} />
           <Route path="*" element={
-            <main className="container mx-auto p-4 mt-6">
+            <main className="w-full px-4 md:px-8 mt-6">
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<NeedsRegistry />} />
@@ -227,6 +228,7 @@ function App() {
                   <Route path="news" element={<NewsScraper />} />
                   <Route path="guides" element={<OfflineGuides />} />
                 </Route>
+                <Route path="/missing" element={<MissingPersons />} />
               </Routes>
             </main>
           } />

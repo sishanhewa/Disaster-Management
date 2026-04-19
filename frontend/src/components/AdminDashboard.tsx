@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../services/api';
 import axios from 'axios';
 import type { Camp, CustomAlert } from '../types';
-import { ShieldAlert, Send } from 'lucide-react';
+import { ShieldAlert, Send, Settings } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {
     const [camps, setCamps] = useState<Camp[]>([]);
@@ -104,7 +105,12 @@ const AdminDashboard: React.FC = () => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            <h1 className="text-3xl font-bold border-b border-slate-700 pb-2 text-slate-100">Admin Dashboard</h1>
+            <div className="flex justify-between items-end border-b border-slate-700 pb-2">
+                <h1 className="text-3xl font-bold text-slate-100">Admin Dashboard</h1>
+                <Link to="/alerts" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-blue-400 px-4 py-2 rounded-lg border border-slate-700 font-bold transition">
+                    <Settings size={18} /> Manage Alerts Console
+                </Link>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Create Camp Panel */}
@@ -184,9 +190,14 @@ const AdminDashboard: React.FC = () => {
 
             {/* Custom Alerts Management Section */}
             <div className="mt-8 border-t border-slate-700 pt-8">
-                <div className="flex items-center gap-2 mb-6">
-                    <ShieldAlert size={28} className="text-red-400" />
-                    <h2 className="text-2xl font-bold text-slate-100">Broadcast Custom Alerts</h2>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div className="flex items-center gap-2">
+                        <ShieldAlert size={28} className="text-red-400" />
+                        <h2 className="text-2xl font-bold text-slate-100">Broadcast Custom Alerts</h2>
+                    </div>
+                    <Link to="/alerts" className="text-sm font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1.5 bg-blue-900/20 px-3 py-1.5 rounded-lg border border-blue-500/30 transition">
+                        Full Alerts Management <Settings size={14} />
+                    </Link>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
