@@ -29,7 +29,7 @@ docs/
 
 # Java build output
 backend/target/
-
-# Misc
-/Component_1_Database_Schema_EER.html
-Component_6_Source_Code/
+/geo/
+/folder_structure.txt
+/tree.py
+/ai-service/venv/

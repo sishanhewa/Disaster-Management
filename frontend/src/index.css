@@ -1,12 +1,104 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #0f172a;
-  color: #f1f5f9;
+@layer base {
+  html, body {
+    @apply bg-slate-900 text-slate-100 font-sans antialiased min-h-screen;
+  }
+
+  select option {
+    @apply bg-slate-900 text-slate-100;
+  }
+
+  * {
+    @apply box-border;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-slate-900;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate-700 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate-600;
+  }
+}
+
+@layer components {
+  /* Reference design card — the ONE true card */
+  .cs-card {
+    @apply bg-slate-800 rounded-xl p-5 border border-slate-700 shadow-lg;
+  }
+
+  /* Section heading — icon + text, one accent color */
+  .cs-section-heading {
+    @apply text-lg font-bold flex items-center gap-2 mb-4;
+  }
+
+  /* Primary button */
+  .cs-btn-primary {
+    @apply bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-500 transition;
+  }
+
+  /* Secondary button */
+  .cs-btn-secondary {
+    @apply bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 flex items-center gap-2 rounded-lg font-semibold transition border border-slate-600;
+  }
+
+  /* Standard dark input */
+  .cs-input {
+    @apply border border-slate-600 bg-slate-700 text-slate-100 placeholder-slate-400 p-2 rounded focus:ring-2 focus:ring-blue-500 outline-none w-full;
+  }
+
+  /* Alert panels - severity-aware overlays */
+  .cs-alert-critical {
+    @apply bg-red-900/40 border border-red-500/50 text-red-400;
+  }
+  .cs-alert-warning {
+    @apply bg-amber-900/40 border border-amber-500/50 text-amber-400;
+  }
+  .cs-alert-info {
+    @apply bg-blue-900/40 border border-blue-500/50 text-blue-400;
+  }
+  .cs-alert-success {
+    @apply bg-emerald-900/40 border border-emerald-500/50 text-emerald-400;
+  }
+
+  /* Status badge pills */
+  .cs-badge-active {
+    @apply bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-1 rounded text-xs;
+  }
+  .cs-badge-critical {
+    @apply bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-1 rounded text-xs;
+  }
+  .cs-badge-warning {
+    @apply bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-1 rounded text-xs;
+  }
+  .cs-badge-info {
+    @apply bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-1 rounded text-xs;
+  }
+
+  /* H1 gradient — ONLY use on page titles */
+  .cs-page-title {
+    @apply text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400;
+  }
+
+  /* Loading skeleton */
+  .cs-skeleton {
+    @apply animate-pulse space-y-3;
+  }
+  .cs-skeleton-line {
+    @apply h-4 bg-slate-700 rounded;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
