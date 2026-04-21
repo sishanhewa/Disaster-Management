@@ -79,7 +79,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.30</version>
+            <version>1.18.34</version>
             <scope>provided</scope>
         </dependency>
 
@@ -156,7 +156,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>1.18.30</version>
+                            <version>1.18.34</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
@@ -178,7 +178,7 @@
                 <artifactId>flyway-maven-plugin</artifactId>
                 <version>10.10.0</version>
                 <configuration>
-                    <url>jdbc:postgresql://localhost:5432/climasphere</url>
+                    <url>jdbc:postgresql://localhost:5433/climasphere</url>
                     <user>climasphere_user</user>
                     <password>climasphere_pass</password>
                 </configuration>

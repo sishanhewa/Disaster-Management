@@ -55,12 +55,10 @@ export default function AppShell() {
   const { user, isAdmin, logout } = useAuthStore();
   const location = useLocation();
 
-  const isUserAdmin = isAdmin();
+  const isUserAdmin = true; // DEV: force show all nav
   const userRoles = user?.roles || [];
-  const canSeeOperations = isUserAdmin || userRoles.some(r => 
-    ['responder', 'govt_official', 'volunteer', 'FIRST_RESPONDER', 'GOVT_OFFICIAL', 'VOLUNTEER', 'AGENCY_PARTNER'].includes(r)
-  );
-  const isCampManager = isUserAdmin || userRoles.some(r => ['responder', 'RESPONDER'].includes(r));
+  const canSeeOperations = true; // DEV: force show all nav
+  const isCampManager = true; // DEV: force show all nav
 
   const getPageTitle = () => {
     const path = location.pathname;

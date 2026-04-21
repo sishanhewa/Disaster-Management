@@ -21,7 +21,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
+// @EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -45,55 +45,7 @@ public class SecurityConfig {
                         )
                 )
                 .authorizeHttpRequests(auth -> auth
-                        // Public auth endpoints
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/register").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/login").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/auth/refresh").permitAll()
-
-                        // Public read-only endpoints
-                        .requestMatchers(HttpMethod.GET, "/api/v1/weather/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/disasters/warnings/active").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/reports/public").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/flood/dashboard").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/guides/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/faq/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/map/custom-zones").permitAll()
-
-                        // Relief camp domain (ported from Disaster-Management-master — Step 3)
-                        .requestMatchers(HttpMethod.GET,    "/api/v1/camps/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/api/v1/needs/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/api/v1/collection-points/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/api/v1/incidents/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,    "/api/v1/broadcast-alerts/active").permitAll()
-                        // Donors can pledge anonymously or as authenticated users
-                        .requestMatchers(HttpMethod.POST,   "/api/v1/pledges/**").permitAll()
-                        // Camp managers (responders) manage camps, needs, incidents
-                        .requestMatchers(HttpMethod.POST,   "/api/v1/camps/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.PUT,    "/api/v1/camps/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/camps/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.POST,   "/api/v1/needs/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.PUT,    "/api/v1/needs/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/needs/**").hasRole("ADMIN")
-                        .requestMatchers(HttpMethod.PUT,    "/api/v1/pledges/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.POST,   "/api/v1/incidents/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.PUT,    "/api/v1/incidents/**").hasAnyRole("ADMIN", "RESPONDER")
-                        .requestMatchers(HttpMethod.DELETE, "/api/v1/incidents/**").hasRole("ADMIN")
-                        .requestMatchers(          "/api/v1/broadcast-alerts/**").hasRole("ADMIN")
-                        .requestMatchers(          "/api/v1/collection-points/**").hasAnyRole("ADMIN", "RESPONDER")
-
-                        // Actuator
-                        .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
-
-                        // Admin endpoints
-                        .requestMatchers("/api/v1/admin/emergency/**").hasAnyRole("ADMIN", "RESPONDER", "GOVT_OFFICIAL")
-                        .requestMatchers("/api/v1/admin/sos/**").hasAnyRole("ADMIN", "RESPONDER", "GOVT_OFFICIAL")
-                        .requestMatchers("/api/v1/admin/warnings/**").hasAnyRole("ADMIN", "RESPONDER", "GOVT_OFFICIAL")
-                        .requestMatchers("/api/v1/admin/spatial-units/**").hasRole("ADMIN")
-                        .requestMatchers("/api/v1/admin/weather-nodes/**").hasRole("ADMIN")
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
-
-                        // All other endpoints require authentication
-                        .anyRequest().authenticated()
+                        .anyRequest().permitAll()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

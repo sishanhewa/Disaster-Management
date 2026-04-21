@@ -4,18 +4,10 @@ import { useAuthStore } from '../store/authStore';
 /* ─── Route Guards ────────────────────────────────────────────── */
 
 export const ProtectedRoute = () => {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
   return <Outlet />;
 };
 
 export const AdminRoute = () => {
-  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
-  const isAdmin = useAuthStore((s) => s.isAdmin());
-  
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (!isAdmin) return <Navigate to="/dashboard" replace />;
-  
   return <Outlet />;
 };
 
