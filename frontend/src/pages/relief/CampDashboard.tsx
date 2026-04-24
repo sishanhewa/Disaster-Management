@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import type { Camp, Need, Pledge } from '../../types';
 import heic2any from 'heic2any';
-import { LayoutDashboard, Megaphone, ClipboardList, Package, CheckCircle, Clock, Trash2 } from 'lucide-react';
+import { LayoutDashboard, Megaphone, ClipboardList, Package, CheckCircle, Clock, Trash2, BarChart2 } from 'lucide-react';
+import CampManagerAnalytics from './CampManagerAnalytics';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const CampDashboard: React.FC = () => {
     const [camps, setCamps] = useState<Camp[]>([]);
     const [needs, setNeeds] = useState<Need[]>([]);
     const [pledges, setPledges] = useState<Pledge[]>([]);
     const [selectedCamp, setSelectedCamp] = useState<string>('');
-    const [activeTab, setActiveTab] = useState<'overview' | 'active_requests' | 'new_request' | 'pledges'>('overview');
+    const [activeTab, setActiveTab] = useState<'overview' | 'active_requests' | 'new_request' | 'pledges' | 'analytics'>('overview');
     const [isLoading, setIsLoading] = useState(true);
 
     const [itemName, setItemName] = useState('');
@@ -189,6 +191,9 @@ const CampDashboard: React.FC = () => {
                         <span className="flex items-center gap-3"><Package size={20} /> Pledges</span>
                         {pendingPledgesCount > 0 && <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">{pendingPledgesCount}</span>}
                     </button>
+                    <button onClick={() => setActiveTab('analytics')} className={`flex items-center gap-3 px-4 py-3 rounded-lg font-bold transition-all ${activeTab === 'analytics' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'}`}>
+                        <BarChart2 size={20} /> Analytics &amp; PDF
+                    </button>
                 </nav>
             </div>
 
@@ -231,8 +236,92 @@ const CampDashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="mt-8 bg-slate-800/50 rounded-2xl border border-slate-700 p-6 h-64 flex items-center justify-center">
-                            <p className="text-slate-500 italic">Advanced Analytics Chart Generator Placeholder</p>
+                        {/* ── Mini Charts Row ─────────────────────────────────── */}
+                        <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+                            {/* Category breakdown */}
+                            <div className="bg-slate-800/60 rounded-2xl border border-slate-700 p-5 shadow-xl">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Items by Category</p>
+                                {(() => {
+                                    const cats = needs.reduce<Record<string, number>>((acc, n) => {
+                                        const k = (n as any).category || 'Other';
+                                        acc[k] = (acc[k] || 0) + ((n as any).quantityRequired || 0);
+                                        return acc;
+                                    }, {});
+                                    const data = Object.entries(cats).map(([name, val]) => ({ name, val }));
+                                    return data.length === 0
+                                        ? <p className="text-slate-600 text-sm text-center py-6">No data yet.</p>
+                                        : <ResponsiveContainer width="100%" height={140}>
+                                            <BarChart data={data} margin={{ top: 0, right: 0, left: -28, bottom: 0 }}>
+                                                <XAxis dataKey="name" stroke="#64748b" tick={{ fontSize: 10 }} />
+                                                <YAxis stroke="#64748b" tick={{ fontSize: 10 }} />
+                                                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '11px' }} />
+                                                <Bar dataKey="val" name="Units" fill="#6366f1" radius={[4,4,0,0]} />
+                                            </BarChart>
+                                        </ResponsiveContainer>;
+                                })()}
+                            </div>
+
+                            {/* Urgency donut */}
+                            <div className="bg-slate-800/60 rounded-2xl border border-slate-700 p-5 shadow-xl">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Needs by Urgency</p>
+                                {(() => {
+                                    const COLORS: Record<string,string> = { critical:'#ef4444', high:'#f97316', medium:'#f59e0b', low:'#22d3ee' };
+                                    const urg = needs.reduce<Record<string, number>>((acc, n) => {
+                                        const k = ((n as any).urgency || 'low').toLowerCase();
+                                        acc[k] = (acc[k] || 0) + 1;
+                                        return acc;
+                                    }, {});
+                                    const data = Object.entries(urg).map(([name, value]) => ({ name, value }));
+                                    return data.length === 0
+                                        ? <p className="text-slate-600 text-sm text-center py-6">No data yet.</p>
+                                        : <ResponsiveContainer width="100%" height={140}>
+                                            <PieChart>
+                                                <Pie data={data} cx="50%" cy="50%" innerRadius={38} outerRadius={60} dataKey="value" paddingAngle={3}
+                                                    label={({ name, value }) => `${name[0].toUpperCase()+name.slice(1)}: ${value}`} labelLine={false}>
+                                                    {data.map((e, i) => <Cell key={i} fill={COLORS[e.name] || '#6366f1'} />)}
+                                                </Pie>
+                                                <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #334155', borderRadius: '8px', color: '#f1f5f9', fontSize: '11px' }} />
+                                            </PieChart>
+                                        </ResponsiveContainer>;
+                                })()}
+                            </div>
+
+                            {/* Fulfilment progress */}
+                            <div className="bg-slate-800/60 rounded-2xl border border-slate-700 p-5 shadow-xl flex flex-col justify-between">
+                                <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Fulfilment Progress</p>
+                                {(() => {
+                                    const req  = needs.reduce((s, n) => s + ((n as any).quantityRequired || 0), 0);
+                                    const pled = needs.reduce((s, n) => s + ((n as any).quantityPledged  || 0), 0);
+                                    const recd = needs.reduce((s, n) => s + ((n as any).quantityReceived || 0), 0);
+                                    const pledPct = req === 0 ? 0 : Math.round((pled / req) * 100);
+                                    const recdPct = req === 0 ? 0 : Math.round((recd / req) * 100);
+                                    return (
+                                        <div className="space-y-4 mt-2">
+                                            <div>
+                                                <div className="flex justify-between text-xs mb-1.5">
+                                                    <span className="text-slate-400">Pledged</span>
+                                                    <span className="font-bold text-emerald-400">{pledPct}%</span>
+                                                </div>
+                                                <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
+                                                    <div className="bg-gradient-to-r from-emerald-600 to-emerald-400 h-3 rounded-full transition-all" style={{ width: `${pledPct}%` }} />
+                                                </div>
+                                                <p className="text-xs text-slate-500 mt-1">{pled.toLocaleString()} / {req.toLocaleString()} units</p>
+                                            </div>
+                                            <div>
+                                                <div className="flex justify-between text-xs mb-1.5">
+                                                    <span className="text-slate-400">Received</span>
+                                                    <span className="font-bold text-cyan-400">{recdPct}%</span>
+                                                </div>
+                                                <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
+                                                    <div className="bg-gradient-to-r from-cyan-700 to-cyan-400 h-3 rounded-full transition-all" style={{ width: `${recdPct}%` }} />
+                                                </div>
+                                                <p className="text-xs text-slate-500 mt-1">{recd.toLocaleString()} / {req.toLocaleString()} units</p>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
                         </div>
                     </div>
                 )}
@@ -400,6 +489,8 @@ const CampDashboard: React.FC = () => {
                         )}
                     </div>
                 )}
+
+                {activeTab === 'analytics' && <CampManagerAnalytics />}
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   AlertCircle, CheckCircle2, Gift, RefreshCw,
-  ToggleLeft, ToggleRight, ChevronDown,
+  ToggleLeft, ToggleRight, ChevronDown, BarChart2,
 } from 'lucide-react';
 import { needsApi, pledgesApi } from '../../api/endpoints';
 import { Badge } from '../../components/common/Badge';
@@ -9,6 +9,7 @@ import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { toast } from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
+import ReliefOversightAnalytics from '../relief/ReliefOversightAnalytics';
 
 /* ── Colour maps ────────────────────────────────────────────── */
 const URGENCY_STYLE: Record<string, string> = {
@@ -24,7 +25,7 @@ const PLEDGE_BADGE: Record<string, string> = {
 };
 
 const AdminNeedsPage: React.FC = () => {
-  const [tab, setTab] = useState<'needs' | 'pledges'>('needs');
+  const [tab, setTab] = useState<'needs' | 'pledges' | 'analytics'>('needs');
   const [needs, setNeeds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [toggleLoading, setToggleLoading] = useState<string | null>(null);
@@ -140,17 +141,18 @@ const AdminNeedsPage: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex gap-1 p-1 bg-slate-800/50 rounded-xl border border-slate-700 w-fit">
-        {(['needs', 'pledges'] as const).map(t => (
+        {(['needs', 'pledges', 'analytics'] as const).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-5 py-2 rounded-lg text-sm font-bold transition-all ${
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
               tab === t
-                ? 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
+                ? t === 'analytics' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-500/20' : 'bg-violet-600 text-white shadow-lg shadow-violet-500/20'
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            {t === 'needs' ? 'Aid Requests' : 'Pledge Drill-Down'}
+            {t === 'analytics' && <BarChart2 size={14} />}
+            {t === 'needs' ? 'Aid Requests' : t === 'pledges' ? 'Pledge Drill-Down' : 'Analytics & PDF'}
           </button>
         ))}
       </div>
@@ -330,6 +332,13 @@ const AdminNeedsPage: React.FC = () => {
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Analytics Tab ─────────────────────────────────────── */}
+      {tab === 'analytics' && (
+        <div className="mt-2">
+          <ReliefOversightAnalytics />
         </div>
       )}
     </div>

@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import axios from 'axios';
 import type { Camp, CustomAlert } from '../../types';
-import { ShieldAlert, Send, Settings } from 'lucide-react';
+import { ShieldAlert, Send, Settings, BarChart2, LayoutDashboard } from 'lucide-react';
+import ReliefOversightAnalytics from './ReliefOversightAnalytics';
 
 const AdminDashboard: React.FC = () => {
+    const [activeTab, setActiveTab] = useState<'manage' | 'analytics'>('manage');
     const [camps, setCamps] = useState<Camp[]>([]);
 
     const [campName, setCampName] = useState('');
@@ -105,12 +107,37 @@ const AdminDashboard: React.FC = () => {
 
     return (
         <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex justify-between items-end border-b border-slate-700 pb-2">
-                <h1 className="text-3xl font-bold text-slate-100">Admin Dashboard</h1>
-                <Link to="/alerts" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-blue-400 px-4 py-2 rounded-lg border border-slate-700 font-bold transition">
-                    <Settings size={18} /> Manage Alerts Console
-                </Link>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-700 pb-4">
+                <h1 className="text-3xl font-bold text-slate-100">Needs &amp; Pledges Oversight</h1>
+                <div className="flex items-center gap-3">
+                    {/* Tab switcher */}
+                    <div className="flex bg-slate-800 border border-slate-700 rounded-xl p-1 gap-1">
+                        <button
+                            onClick={() => setActiveTab('manage')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                                activeTab === 'manage' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                        >
+                            <LayoutDashboard size={16} /> Management
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('analytics')}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+                                activeTab === 'analytics' ? 'bg-indigo-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                        >
+                            <BarChart2 size={16} /> Analytics &amp; PDF
+                        </button>
+                    </div>
+                    <Link to="/alerts" className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-blue-400 px-4 py-2 rounded-lg border border-slate-700 font-bold transition">
+                        <Settings size={18} /> Alerts Console
+                    </Link>
+                </div>
             </div>
+
+            {/* Analytics tab */}
+            {activeTab === 'analytics' && <ReliefOversightAnalytics />}
+            {activeTab !== 'analytics' && <>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Create Camp Panel */}
@@ -262,6 +289,7 @@ const AdminDashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+            </> /* end management tab */ }
         </div>
     );
 };
