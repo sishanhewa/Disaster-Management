@@ -1,13 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import {
   Tent, Plus, Edit2, Trash2, RefreshCw, Search,
-  MapPin, CheckCircle, X,
+  MapPin, CheckCircle, X, Navigation2
 } from 'lucide-react';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { campsApi, authApi, adminApi } from '../../api/endpoints';
 import { Badge } from '../../components/common/Badge';
 import Card from '../../components/common/Card';
 import Button from '../../components/common/Button';
 import { toast } from 'react-hot-toast';
+
+// Fix for default marker icons in Leaflet
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+});
+
+function LocationPickerMarker({ setLat, setLng, lat, lng }: any) {
+  useMapEvents({
+    click(e) {
+      setLat(e.latlng.lat);
+      setLng(e.latlng.lng);
+    },
+  });
+  return lat && lng ? <Marker position={[lat, lng]} /> : null;
+}
 
 const AdminCampsPage: React.FC = () => {
   const [camps, setCamps] = useState<any[]>([]);
@@ -28,6 +49,8 @@ const AdminCampsPage: React.FC = () => {
   const [managerName, setManagerName] = useState('');
   const [managerEmail, setManagerEmail] = useState('');
   const [managerPassword, setManagerPassword] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [formLoading, setFormLoading] = useState(false);
 
   useEffect(() => { fetchCamps(); }, []);
@@ -59,6 +82,7 @@ const AdminCampsPage: React.FC = () => {
     setCampName(''); setDistrict(''); setAddress('');
     setSelectedManagerId(''); setAssignMode('existing');
     setManagerName(''); setManagerEmail(''); setManagerPassword('');
+    setLatitude(null); setLongitude(null);
     setIsModalOpen(true);
   };
 
@@ -70,6 +94,8 @@ const AdminCampsPage: React.FC = () => {
     setSelectedManagerId(camp.manager?.id || '');
     setAssignMode('existing');
     setManagerName(''); setManagerEmail(''); setManagerPassword('');
+    setLatitude(camp.latitude || null);
+    setLongitude(camp.longitude || null);
     setIsModalOpen(true);
   };
 
@@ -88,7 +114,7 @@ const AdminCampsPage: React.FC = () => {
         finalManagerId = regRes.user?.id || regRes.id || '';
       }
 
-      const campData: any = { campName, district, address };
+      const campData: any = { campName, district, address, latitude, longitude };
       if (finalManagerId) {
         campData.manager = { id: finalManagerId };
       }
@@ -408,6 +434,38 @@ const AdminCampsPage: React.FC = () => {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Map Picker Section */}
+              <div className="space-y-3 p-4 bg-slate-800/60 rounded-xl border border-slate-700">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Camp Location (Pin on Map)
+                  </h4>
+                  {latitude && longitude && (
+                    <span className="text-[10px] text-emerald-400 font-mono">
+                      {latitude.toFixed(4)}, {longitude.toFixed(4)}
+                    </span>
+                  )}
+                </div>
+                
+                <div className="h-48 rounded-lg overflow-hidden border border-slate-700 relative z-0">
+                  <MapContainer 
+                    center={latitude && longitude ? [latitude, longitude] : [7.8731, 80.7718]} 
+                    zoom={latitude && longitude ? 13 : 7} 
+                    style={{ height: '100%', width: '100%' }}
+                  >
+                    <TileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                    <LocationPickerMarker setLat={setLatitude} setLng={setLongitude} lat={latitude} lng={longitude} />
+                  </MapContainer>
+                  {!latitude && (
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[1px] flex items-center justify-center pointer-events-none z-10">
+                      <p className="text-xs font-bold text-white bg-slate-800/80 px-3 py-1.5 rounded-full border border-slate-700 shadow-xl">
+                        Click on map to set location
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="flex gap-3 pt-1">

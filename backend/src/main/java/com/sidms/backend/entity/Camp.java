@@ -40,6 +40,12 @@ public class Camp {
     @Column
     private Integer capacity;
 
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
+
     @Builder.Default
     @Column(name = "is_active")
     private Boolean isActive = true;

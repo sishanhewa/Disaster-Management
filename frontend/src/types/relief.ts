@@ -7,6 +7,8 @@ export interface Camp {
   district: string;
   address: string;
   capacity?: number;
+  latitude?: number;
+  longitude?: number;
   isActive?: boolean;
   manager?: { id: string; displayName: string; email: string };
   createdAt?: string;
@@ -24,7 +26,7 @@ export interface CollectionPoint {
 
 export interface ReliefNeed {
   id?: string;
-  camp: Pick<Camp, 'id' | 'campName' | 'district'>;
+  camp: Camp;
   itemName: string;
   category: string;
   quantityRequired: number;

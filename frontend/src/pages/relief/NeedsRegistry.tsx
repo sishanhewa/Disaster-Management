@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { needsApi, pledgesApi } from '../../api/endpoints';
 import type { ReliefNeed } from '../../types/relief';
-import { Search, HeartHandshake, MapPin, AlertCircle, Package, ArrowRight, X } from 'lucide-react';
+import { Search, HeartHandshake, MapPin, AlertCircle, Package, ArrowRight, X, Info } from 'lucide-react';
+import CampDetailsModal from '../../components/relief/CampDetailsModal';
+import type { Camp } from '../../types/relief';
 
 // Ported from Disaster-Management-master NeedsRegistry.tsx
 // API: api.needs.getAll() → needsApi.getAll() | api.pledges.create() → pledgesApi.create()
@@ -21,6 +23,8 @@ const NeedsRegistry: React.FC = () => {
     const [donorName, setDonorName] = useState<string>('');
     const [donorEmail, setDonorEmail] = useState<string>('');
     const [donorPhone, setDonorPhone] = useState<string>('');
+
+    const [viewingCamp, setViewingCamp] = useState<Camp | null>(null);
 
     const fetchNeeds = async () => {
         try {
@@ -156,10 +160,23 @@ const NeedsRegistry: React.FC = () => {
                                 </div>
                                 <div className="p-5 flex-grow flex flex-col">
                                     <h3 className="text-xl font-extrabold text-slate-100 mb-2 truncate" title={need.itemName}>{need.itemName}</h3>
-                                    <div className="flex items-start gap-2 text-sm text-slate-400 mb-5 bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                                    <div className="flex items-start gap-2 text-sm text-slate-400 mb-5 bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 group/location">
                                         <MapPin size={16} className="mt-0.5 text-blue-400 shrink-0" />
-                                        <div className="overflow-hidden">
-                                            <p className="font-bold text-slate-300 truncate" title={need.camp?.campName}>{need.camp?.campName}</p>
+                                        <div className="overflow-hidden flex-1">
+                                            <button 
+                                                type="button"
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    console.log('Viewing camp:', need.camp);
+                                                    setViewingCamp(need.camp as Camp);
+                                                }}
+                                                className="font-bold text-slate-300 truncate hover:text-emerald-400 transition-colors flex items-center gap-1.5 text-left w-full cursor-pointer z-10"
+                                                title="View Camp Details"
+                                            >
+                                                <span className="truncate">{need.camp?.campName}</span>
+                                                <Info size={12} className="shrink-0 opacity-60 group-hover/location:opacity-100 transition-opacity" />
+                                            </button>
                                             <p className="text-xs mt-0.5">{need.camp?.district}</p>
                                         </div>
                                     </div>
@@ -247,6 +264,12 @@ const NeedsRegistry: React.FC = () => {
                         </form>
                     </div>
                 </div>
+            {/* Camp Details Modal */}
+            {viewingCamp && (
+                <CampDetailsModal 
+                    camp={viewingCamp} 
+                    onClose={() => setViewingCamp(null)} 
+                />
             )}
         </div>
     );
