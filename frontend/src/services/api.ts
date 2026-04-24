@@ -1,7 +1,7 @@
 import axios from 'axios';
 import type { Camp, Need, Pledge, CollectionPoint, CustomAlert } from '../types';
 
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = 'http://localhost:8080/api/v1';
 
 class BaseService<T> {
     endpoint: string;
@@ -68,12 +68,12 @@ let localAlerts: CustomAlert[] = [
 ];
 
 class AlertService extends BaseService<CustomAlert> {
-    constructor() { super('alerts'); }
+    constructor() { super('broadcast-alerts'); }
 
     // Override with local fallback
     async getAll(): Promise<CustomAlert[]> {
         try {
-            const res = await axios.get(this.endpoint);
+            const res = await axios.get(`${this.endpoint}/active`);
             return res.data;
         } catch (e) {
             console.warn("Backend offline, using local alerts memory.");

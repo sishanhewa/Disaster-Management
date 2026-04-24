@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../../services/api';
 import axios from 'axios';
-import type { Camp, CustomAlert } from '../types';
+import type { Camp, CustomAlert } from '../../types';
 import { ShieldAlert, Send, Settings } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {

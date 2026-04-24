@@ -1,0 +1,287 @@
+import { r as __decorate } from "./tslib.es6-DlxpVI88.js";
+import "./Error-CzxduO2m.js";
+import "./typedArrayUtil-BAuNmygZ.js";
+import "./request-CuG5cxow.js";
+import "./promiseUtils-DhYhergm.js";
+import { n as c, t as a } from "./decorators-DE7S5xmd.js";
+import "./Accessor-kDoDKy4v.js";
+import "./tracking-DBoczQof.js";
+import "./ObservableBase-Bz6iwe5p.js";
+import "./scheduling-DiUcWka1.js";
+import "./PooledArray-ChtfzjBt.js";
+import "./Evented-GLJbxWO5.js";
+import "./SimpleObservable-CNlRjEs1.js";
+import "./Collection-BAJSKCip.js";
+import "./collectionUtils-DQeMhtWS.js";
+import { n } from "./JSONSupport-BUaD4jSd.js";
+import "./Promise-Dhhz7kXA.js";
+import "./Loadable-CQsALnOO.js";
+import "./asyncUtils-D83Q647Q.js";
+import "./jsonMap-CFSDFmi6.js";
+import "./Ellipsoid-DzO_iHAj.js";
+import "./assets-BZbzeyNa.js";
+import "./pe-BLztJ5xc.js";
+import "./spatialReferenceUtils-b3vCEkpS.js";
+import "./units-Dg-cK1vO.js";
+import "./SpatialReference-rIfb2LrD.js";
+import "./Point-B7zMqEx6.js";
+import "./Extent-CquIzaXp.js";
+import "./locale-BdrQIP_a.js";
+import "./Portal-DYysvbhZ.js";
+import "./apiKeyUtils-Bv2Uwsd3.js";
+import "./PortalItem-BaGmB6Wg.js";
+import "./messages-BSXJ_xjI.js";
+import "./layerUtils-sQ-3wxAB.js";
+import "./reactiveUtils-DRpp6Nmg.js";
+import "./Identifiable-D2tBaz7a.js";
+import "./Layer-BKiNQen_.js";
+import "./timeZoneUtils-CBNjS1ZG.js";
+import "./UnknownTimeZone-Dk-CZx5e.js";
+import "./date-BGzzeGV1.js";
+import "./timeUtils-LVAIYsCb.js";
+import "./TimeExtent-bDAyL7B5.js";
+import "./catalogUtils-lRNSLCIB.js";
+import "./colorUtils-BC0_8aMM.js";
+import "./mathUtils-hEBUcrMa.js";
+import "./Color-C99QAF80.js";
+import "./opacityUtils-DgEZ8x-q.js";
+import "./Clonable-D_RHUyXD.js";
+import "./uuid-CI605U6Y.js";
+import "./MD5-CvSXL3W6.js";
+import "./Polygon-CCBjbbXT.js";
+import "./curveUtils-CfkOAT4m.js";
+import "./coordsUtils-DXLB9bAf.js";
+import "./aaBoundingRect-CgUWvAgv.js";
+import "./common-BxLRDsKd.js";
+import "./vec2-BPF6SpMH.js";
+import "./curveExtent--ue9-x0m.js";
+import "./mat3-CPqND9LM.js";
+import "./mat3f64-DZZP34-L.js";
+import "./Polyline-Cv0nwof6.js";
+import "./vec3f64-CwISzc_v.js";
+import "./Multipoint-B5Liskmz.js";
+import "./spatialReferenceEllipsoidUtils-qNeWENaq.js";
+import "./GeographicTransformation-D90zE-j2.js";
+import "./geodesicConstants-C0TscDSm.js";
+import "./projectBuffer-CV6RkXdH.js";
+import "./projectionUtils-CmEsVWfk.js";
+import "./utils-3ndlmaCD.js";
+import "./mat4-CCf33Vjt.js";
+import "./jsonUtils-D_oLUjKv.js";
+import "./typeUtils-DaICxhuY.js";
+import "./MultiOriginJSONSupport-BYBQ0x8Q.js";
+import "./Version-CjTddL5F.js";
+import "./portalItemUtils-CDCH3kjA.js";
+import "./timeUnitKebabDictionary-DmXAmWsU.js";
+import "./TimeInfo-DCZqAfjD.js";
+import "./fieldType-D7SwLPxF.js";
+import "./sql-Cyp7eZa9.js";
+import "./fieldUtils-CC2YSmV6.js";
+import "./PopupTemplate-8SH37QID.js";
+import "./fieldFormatUtils-R1ptUFq7.js";
+import "./ActionToggle-JH4srUd2.js";
+import "./Graphic-D2G0Ykqt.js";
+import "./SimpleMarkerSymbol-BjFFaoyw.js";
+import "./typeUtils-DZkmoi8p.js";
+import "./mat4f64-BA1Qbgtv.js";
+import "./DoubleArray-EEc6IyGQ.js";
+import "./aaBoundingBox-CzeY9F8R.js";
+import "./symbolLayerUtils3D-BQRyZskR.js";
+import "./textUtils-B4iTDAON.js";
+import "./TextSymbol-CsSnkPMD.js";
+import "./SimpleFillSymbol-CbXKKnxp.js";
+import "./PictureMarkerSymbol-Crs5VdSs.js";
+import "./layerContainerType-ZF61P2__.js";
+import "./FormTemplate-C-izJr41.js";
+import "./Field-jzopk-Sr.js";
+import "./GraphicOrigin-Cql_LpUb.js";
+import "./FeatureLayer-D8WKTQ9s.js";
+import "./Queue-CM8W5OTt.js";
+import "./workers-BjS-6PTj.js";
+import "./number-DwLpDjta.js";
+import "./intl-1FbLkipu.js";
+import "./workers-Nrqav2LG.js";
+import "./editsZScale-BvvUhieS.js";
+import "./zscale-Cit8BV12.js";
+import "./queryZScale-BhSMSSYh.js";
+import "./FeatureSet-Sjrap7hf.js";
+import "./APIKeyMixin-CpWoJvp9.js";
+import "./ArcGISService-BFbH4hVT.js";
+import "./parser-DVDIh5bD.js";
+import "./jsonUtils-DOqHqQ2U.js";
+import "./BlendLayer-D1uDzFu8.js";
+import "./CustomParametersMixin-CvFUyY3s.js";
+import "./scaleUtils-SpG4h9an.js";
+import "./DisplayFilteredLayer-Cco1Lp7X.js";
+import "./displayFilterUtils-DQYkMjND.js";
+import { a as t, n as i, t as c$1 } from "./versionManagementUtils-DdkGBUES.js";
+import { n as c$2 } from "./EditBusLayer-BrMVPiuf.js";
+import "./DynamicDataLayer-Nl0N-nbb.js";
+import "./Query-aOayEcb1.js";
+import "./QuantizationParameters-BoZFfmfD.js";
+import "./StatisticDefinition-DCvGQn-e.js";
+import "./FeatureFilter-Bd2SB4Jt.js";
+import "./FeatureEffect-CWwUJtCe.js";
+import "./FeatureEffectLayer-BmFDjIrd.js";
+import "./HeightModelInfo-CaK_zgTy.js";
+import "./ElevationInfo-Bsg5AqQw.js";
+import "./lengthUtils-DrG-JkjU.js";
+import "./unitConversionUtils-dsyJpUwL.js";
+import "./commonProperties-DQjThAJZ.js";
+import "./Relationship-pflmbkq7.js";
+import "./FeatureLayerBase-CYYtrhT4.js";
+import "./featureQueryAll-BuWv8PcT.js";
+import "./commonProperties-B5IuzhGu.js";
+import "./colorRamps-DqMwNyrB.js";
+import "./ColorStop-DRTi-5Tw.js";
+import "./visualVariableUtils-Cml1ksAq.js";
+import "./defaults-BIYIh1Ct.js";
+import "./jsonUtils-Ds8phlm4.js";
+import "./SimpleRenderer-mi99w4q9.js";
+import "./diffUtils-D9XuwFJT.js";
+import "./RendererLegendOptions-Ct0TKrWt.js";
+import "./UniqueValueRenderer-hzOrhtEF.js";
+import "./styleUtils-DIEtWrns.js";
+import "./featureLayerUtils-4Rc-m6fm.js";
+import "./NormalizationBinParametersMixin-BMz0fNea.js";
+import "./RelationshipQuery-mrrilC1Q.js";
+import "./LayerFloorInfo-Dgl8VRsh.js";
+import "./multiLayerServiceUtils-DCT7dTXz.js";
+import "./relativeTimeQueryUtils-BHOVTSHF.js";
+import "./serviceCapabilitiesUtils-CUndq9vH.js";
+import "./FeatureReductionLayer-BfhNe5jI.js";
+import "./labelUtils-CbCLFptS.js";
+import "./labelingInfo-BvxiOw9s.js";
+import "./ClassBreaksRenderer-CLVomBRM.js";
+import "./MemCache-DQgW8nin.js";
+import "./LRUCache-C0A4Jg0w.js";
+import "./typeUtils-YqCqXWJ1.js";
+import "./FieldsIndex-FII40DPp.js";
+import "./enum-D9ePJlKL.js";
+import "./TimeOnly-DiAMH6GI.js";
+import "./ArcadeExpression-DAdhL71a.js";
+import "./DictionaryScriptEvaluator-CHGIJh_p.js";
+import "./defaultCIMValues-DmZscRIy.js";
+import "./utils-CwgvNNZ_.js";
+import "./vec4-DVix-cmy.js";
+import "./vec4f64-SXri5KT8.js";
+import "./heatmapUtils-CKd_Sdiu.js";
+import "./jsonUtils-DV6Qjweo.js";
+import "./FeatureReductionSelection-CABh17CS.js";
+import "./OperationalLayer-CaAaD2Zf.js";
+import "./OrderByInfo-Daf0eByc.js";
+import "./OrderedLayer-OrSAx3eZ.js";
+import "./PortalLayer-B3x-_Tp7.js";
+import "./RefreshableLayer-CsLgef5j.js";
+import "./ScaleRangeLayer-CIL5S5vZ.js";
+import "./TemporalLayer-CoD-2i-t.js";
+import "./TrackableLayer-DRJJPsVQ.js";
+import "./FeatureTemplate-C8v81uvW.js";
+import "./FeatureType-BU5W0vsG.js";
+import "./fieldProperties-Dza4hsjF.js";
+import "./sanitizerUtils-D4_LRYnp.js";
+import "./TitleCreator-BH1W7qGA.js";
+import "./versionUtils-_L_5z_BK.js";
+import "./styleUtils-BxEPoLoR.js";
+import "./popupUtils-yeadrla2.js";
+import "./ValidateNetworkTopologyResult-zrzK2gHd.js";
+import { t as N } from "./UtilityNetwork-Cdb3s5pO.js";
+import "./UNTraceConfiguration-KHJMMVBN.js";
+import "./typeUtils-CFnTDMtU.js";
+import "./NamedTraceConfiguration-CnGSAvYn.js";
+import "./NetworkElement-Bc_17I9h.js";
+import "./TelecomNetworkElement-CK1MxXNb.js";
+import "./Circuit-B-XJxsTt.js";
+import "./TraceLocation-DqkqiD8w.js";
+import "./CircuitLocation-DO9dNaIi.js";
+import "./TraceResult-DRxRVEMl.js";
+//#region node_modules/@arcgis/core/networks/UnitIdentifierManager.js
+var l = class extends n {
+	constructor(e) {
+		super(e), this.utilityNetwork = null;
+	}
+	get networkServiceUrl() {
+		return this.utilityNetwork?.networkServiceUrl ?? null;
+	}
+	get featureServiceUrl() {
+		return this.utilityNetwork?.featureServiceUrl ?? null;
+	}
+	get gdbVersion() {
+		return this.utilityNetwork?.gdbVersion ?? null;
+	}
+	get historicMoment() {
+		return this.utilityNetwork?.historicMoment ?? null;
+	}
+	async insertGap(e, t$1, r) {
+		const [{ insertGap: s }, { default: n }] = await Promise.all([import("./insertGap-C9hvU9Ee.js"), import("./InsertGapParameters-C_jIZDuB.js")]), l = new n({
+			object: e,
+			firstUnit: t$1,
+			numUnits: r
+		});
+		c$1(this.featureServiceUrl, this.gdbVersion || null) ? (l.sessionId = t, await i(this.featureServiceUrl, this.gdbVersion, !0)) : l.sessionId = null, l.gdbVersion = this.gdbVersion;
+		const u = c$2(this.featureServiceUrl, null, this.gdbVersion, !1), c = await s(this.networkServiceUrl, l);
+		u.resolve({
+			edits: null,
+			addedFeatures: [],
+			updatedFeatures: [],
+			deletedFeatures: [],
+			addedAttachments: [],
+			updatedAttachments: [],
+			deletedAttachments: [],
+			exceededTransferLimit: c.exceededTransferLimit,
+			historicMoment: c.moment,
+			editedFeatures: c.serviceEdits || void 0
+		});
+	}
+	async reset(e) {
+		const [{ reset: t$2 }, { default: r }] = await Promise.all([import("./reset-P38y04rG.js"), import("./ResetParameters-COTdN2W6.js")]), s = new r({ objects: e });
+		c$1(this.featureServiceUrl, this.gdbVersion || null) ? (s.sessionId = t, await i(this.featureServiceUrl, this.gdbVersion, !0)) : s.sessionId = null, s.gdbVersion = this.gdbVersion;
+		const n = c$2(this.featureServiceUrl, null, this.gdbVersion, !1), l = await t$2(this.networkServiceUrl, s);
+		n.resolve({
+			edits: null,
+			addedFeatures: [],
+			updatedFeatures: [],
+			deletedFeatures: [],
+			addedAttachments: [],
+			updatedAttachments: [],
+			deletedAttachments: [],
+			exceededTransferLimit: l.exceededTransferLimit,
+			historicMoment: l.moment,
+			editedFeatures: l.serviceEdits || void 0
+		});
+	}
+	async resize(e, t$3) {
+		const [{ resize: r }, { default: s }] = await Promise.all([import("./resize-B6lu4ZiS.js"), import("./ResizeParameters-DJpSFGbo.js")]), n = new s({
+			object: e,
+			numUnits: t$3
+		});
+		c$1(this.featureServiceUrl, this.gdbVersion || null) ? (n.sessionId = t, await i(this.featureServiceUrl, this.gdbVersion, !0)) : n.sessionId = null, n.gdbVersion = this.gdbVersion;
+		const l = c$2(this.featureServiceUrl, null, this.gdbVersion, !1), u = await r(this.networkServiceUrl, n);
+		l.resolve({
+			edits: null,
+			addedFeatures: [],
+			updatedFeatures: [],
+			deletedFeatures: [],
+			addedAttachments: [],
+			updatedAttachments: [],
+			deletedAttachments: [],
+			exceededTransferLimit: u.exceededTransferLimit,
+			historicMoment: u.moment,
+			editedFeatures: u.serviceEdits || void 0
+		});
+	}
+	async query(e) {
+		const [{ queryUnitIdentifiers: t$4 }, { default: r }] = await Promise.all([import("./queryUnitIdentifiers-8ImBMznx.js"), import("./QueryUnitIdentifiersParameters-BeqGbmLa.js")]), s = new r({ objects: e });
+		c$1(this.featureServiceUrl, this.gdbVersion || null) ? s.sessionId = t : s.sessionId = null, s.gdbVersion = this.gdbVersion, s.moment = this.historicMoment;
+		return await t$4(this.networkServiceUrl, s);
+	}
+};
+__decorate([a({
+	type: N,
+	constructOnly: !0
+})], l.prototype, "utilityNetwork", void 0), __decorate([a()], l.prototype, "networkServiceUrl", null), __decorate([a()], l.prototype, "featureServiceUrl", null), __decorate([a()], l.prototype, "gdbVersion", null), __decorate([a()], l.prototype, "historicMoment", null), l = __decorate([c("esri.networks.UnitIdentifierManager")], l);
+var u = l;
+//#endregion
+export { u as default };
+
+//# sourceMappingURL=UnitIdentifierManager-Cbq7zDtk.js.map

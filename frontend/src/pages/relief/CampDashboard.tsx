@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
-import type { Camp, Need, Pledge } from '../types';
+import type { Camp, Need, Pledge } from '../../types';
 import heic2any from 'heic2any';
 import { LayoutDashboard, Megaphone, ClipboardList, Package, CheckCircle, Clock, Trash2 } from 'lucide-react';
 
@@ -159,7 +159,7 @@ const CampDashboard: React.FC = () => {
         return <div className="text-center text-slate-400 py-20 text-lg">Loading Management Systems...</div>;
     }
 
-    const activeNeedsCount = needs.filter(n => n.active).length;
+    const activeNeedsCount = needs.filter(n => n.isActive).length;
     const pendingPledgesCount = pledges.filter(p => p.status === 'pending').length;
     const itemsCollectedCount = pledges.filter(p => p.status === 'collected').reduce((acc, p) => acc + p.quantity, 0);
 
@@ -257,20 +257,20 @@ const CampDashboard: React.FC = () => {
                         ) : (
                             <div className="grid gap-4">
                                 {needs.map((n) => (
-                                    <div key={n.id} className={`p-5 rounded-xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all ${n.active ? 'bg-slate-800 border-slate-700 shadow-lg' : 'bg-slate-800/40 border-slate-800 opacity-70'}`}>
+                                    <div key={n.id} className={`p-5 rounded-xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 transition-all ${n.isActive ? 'bg-slate-800 border-slate-700 shadow-lg' : 'bg-slate-800/40 border-slate-800 opacity-70'}`}>
                                         <div className="flex gap-4 items-center">
-                                            {n.imageBase64 ? (
-                                                <img src={n.imageBase64} alt="Need item" className="w-16 h-16 rounded-lg object-cover border border-slate-600" />
+                                            {n.imageUrl ? (
+                                                <img src={n.imageUrl} alt="Need item" className="w-16 h-16 rounded-lg object-cover border border-slate-600" />
                                             ) : (
                                                 <div className="w-16 h-16 rounded-lg bg-slate-700 border border-slate-600 flex items-center justify-center text-slate-500"><Package size={24}/></div>
                                             )}
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <h3 className="font-bold text-lg text-slate-100">{n.itemName}</h3>
-                                                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase border ${n.active ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/30' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
-                                                        {n.active ? 'Active' : 'Resolved'}
+                                                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase border ${n.isActive ? 'bg-emerald-900/30 text-emerald-400 border-emerald-500/30' : 'bg-slate-700 text-slate-400 border-slate-600'}`}>
+                                                        {n.isActive ? 'Active' : 'Resolved'}
                                                     </span>
-                                                    {n.active && <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${n.urgency === 'critical' ? 'bg-red-900/50 text-red-400' : 'bg-orange-900/50 text-orange-400'}`}>{n.urgency}</span>}
+                                                    {n.isActive && <span className={`text-xs px-2 py-0.5 rounded-full font-bold uppercase ${n.urgency === 'critical' ? 'bg-red-900/50 text-red-400' : 'bg-orange-900/50 text-orange-400'}`}>{n.urgency}</span>}
                                                 </div>
                                                 <p className="text-sm text-slate-400">{n.category} • Progress: {n.quantityPledged} / {n.quantityRequired}</p>
                                                 
@@ -282,9 +282,9 @@ const CampDashboard: React.FC = () => {
                                         
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => handleToggleNeedStatus(n.id!, n.active!)}
-                                                className={`px-4 py-2 font-bold rounded-lg text-sm transition shadow ${n.active ? 'bg-slate-700 hover:bg-emerald-600/80 text-white border border-slate-600' : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}`}>
-                                                {n.active ? 'Close Request' : 'Reopen Request'}
+                                                onClick={() => handleToggleNeedStatus(n.id!, n.isActive!)}
+                                                className={`px-4 py-2 font-bold rounded-lg text-sm transition shadow ${n.isActive ? 'bg-slate-700 hover:bg-emerald-600/80 text-white border border-slate-600' : 'bg-slate-700/50 hover:bg-slate-600 text-slate-300'}`}>
+                                                {n.isActive ? 'Close Request' : 'Reopen Request'}
                                             </button>
                                             <button 
                                                 onClick={() => handleDeleteNeed(n.id!)}

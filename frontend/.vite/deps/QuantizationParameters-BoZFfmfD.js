@@ -1,0 +1,49 @@
+import { r as __decorate } from "./tslib.es6-DlxpVI88.js";
+import { w as a } from "./Error-CzxduO2m.js";
+import { n as c, t as a$1 } from "./decorators-DE7S5xmd.js";
+import { n } from "./JSONSupport-BUaD4jSd.js";
+import { n as o } from "./jsonMap-CFSDFmi6.js";
+import { t as z } from "./Extent-CquIzaXp.js";
+//#region node_modules/@arcgis/core/rest/support/QuantizationParameters.js
+var p;
+var l = new o({
+	upperLeft: "upper-left",
+	lowerLeft: "lower-left"
+});
+var m = p = class extends n {
+	constructor(e) {
+		super(e), this.extent = null, this.mode = "view", this.originPosition = "upper-left", this.tolerance = 1;
+	}
+	clone() {
+		return new p(a({
+			extent: this.extent,
+			mode: this.mode,
+			originPosition: this.originPosition,
+			tolerance: this.tolerance
+		}));
+	}
+};
+__decorate([a$1({
+	type: z,
+	json: { write: { overridePolicy() {
+		return { enabled: "view" === this.mode };
+	} } }
+})], m.prototype, "extent", void 0), __decorate([a$1({
+	type: ["view", "edit"],
+	json: { write: !0 }
+})], m.prototype, "mode", void 0), __decorate([a$1({
+	type: String,
+	json: {
+		read: l.read,
+		write: l.write
+	}
+})], m.prototype, "originPosition", void 0), __decorate([a$1({
+	type: Number,
+	json: { write: { overridePolicy() {
+		return { enabled: "view" === this.mode };
+	} } }
+})], m.prototype, "tolerance", void 0), m = p = __decorate([c("esri.rest.support.QuantizationParameters")], m);
+//#endregion
+export { m as t };
+
+//# sourceMappingURL=QuantizationParameters-BoZFfmfD.js.map

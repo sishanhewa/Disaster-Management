@@ -212,8 +212,8 @@ const NeedsRegistry: React.FC = () => {
                                 <AlertCircle className="text-blue-400 shrink-0 mt-0.5" size={20} />
                                 <div className="text-sm text-slate-300">
                                     <p>You are committing to donate physical goods to:</p>
-                                    <p className="font-bold text-white mt-0.5">{pledgingNeed.camp.campName}</p>
-                                    <p className="text-xs text-slate-400">Currently needs {pledgingNeed.quantityRequired - pledgingNeed.quantityPledged} more units.</p>
+                                    <p className="font-bold text-white mt-0.5">{pledgingNeed.camp?.campName || 'Unknown Camp'}</p>
+                                    <p className="text-xs text-slate-400">Currently needs {pledgingNeed.quantityRequired - (pledgingNeed.quantityPledged || 0)} more units.</p>
                                 </div>
                             </div>
                             <div className="space-y-4">
