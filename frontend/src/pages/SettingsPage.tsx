@@ -1,24 +1,24 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { 
   Settings, Bell, Shield, Wind, Languages, 
-  Moon, Sun, Monitor, Clock, Plus, Edit2, Trash2, 
-  Power, AlertTriangle, Thermometer, Zap, Loader2, Globe, Save
+  Moon, Sun, Monitor, Clock, Thermometer, Zap, 
+  Globe, Save, UserCheck, ChevronRight, BellRing
 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { usersApi, alertRulesApi } from '../api/endpoints';
-import { Badge } from '../components/common/Badge';
+import { usersApi } from '../api/endpoints';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import { toast } from 'react-hot-toast';
-import CreateAlertRuleModal from '../components/settings/CreateAlertRuleModal';
+import VerificationSection from '../components/settings/VerificationSection';
 
 const SettingsPage: React.FC = () => {
-  const { user, setUser } = useAuthStore() as any; // Cast to any to bypass temporary store sync issues if any
+  const { user, setUser } = useAuthStore() as any;
   const [loading, setLoading] = useState(false);
-  const [alertRules, setAlertRules] = useState<any[]>([]);
-  const [fetchingRules, setFetchingRules] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingRule, setEditingRule] = useState<any>(null);
+  const [activeSection, setActiveSection] = useState<'general' | 'notifications' | 'verification'>('general');
+  const generalRef = useRef<HTMLDivElement | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
+  const verificationRef = useRef<HTMLDivElement | null>(null);
 
   // Local state for preferences to avoid too many store updates
   const [prefs, setPrefs] = useState({
@@ -30,25 +30,10 @@ const SettingsPage: React.FC = () => {
     notifEmail: user?.notifEmail ?? true,
     notifPush: user?.notifPush ?? true,
     notifInapp: user?.notifInapp ?? true,
+    notifSms: user?.notifSms ?? false,
     dndStart: user?.dndStart || '22:00',
     dndEnd: user?.dndEnd || '07:00',
   });
-
-  useEffect(() => {
-    fetchAlertRules();
-  }, []);
-
-  const fetchAlertRules = async () => {
-    try {
-      setFetchingRules(true);
-      const data = await alertRulesApi.getAlertRules();
-      setAlertRules(data);
-    } catch (error) {
-      console.error('Failed to fetch alert rules', error);
-    } finally {
-      setFetchingRules(false);
-    }
-  };
 
   const handlePrefChange = (key: string, value: any) => {
     setPrefs(prev => ({ ...prev, [key]: value }));
@@ -58,7 +43,6 @@ const SettingsPage: React.FC = () => {
     try {
       setLoading(true);
       await usersApi.updatePreferences(prefs);
-      // Update local store as well
       if (!user) return;
       setUser({ ...user, ...prefs });
       toast.success('Preferences saved');
@@ -69,35 +53,14 @@ const SettingsPage: React.FC = () => {
     }
   };
 
-  const toggleRule = async (id: string) => {
-    try {
-      await alertRulesApi.toggleAlertRule(id);
-      fetchAlertRules();
-      toast.success('Rule toggled');
-    } catch (error) {
-      toast.error('Failed to toggle rule');
-    }
-  };
-
-  const deleteRule = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this alert rule?')) return;
-    try {
-      await alertRulesApi.deleteAlertRule(id);
-      setAlertRules(prev => prev.filter(r => r.id !== id));
-      toast.success('Rule deleted');
-    } catch (error) {
-      toast.error('Failed to delete rule');
-    }
-  };
-
-  const openCreateModal = () => {
-    setEditingRule(null);
-    setIsModalOpen(true);
-  };
-
-  const openEditModal = (rule: any) => {
-    setEditingRule(rule);
-    setIsModalOpen(true);
+  const scrollToSection = (section: 'general' | 'notifications' | 'verification') => {
+    setActiveSection(section);
+    const targets: Record<'general' | 'notifications' | 'verification', React.RefObject<HTMLDivElement | null>> = {
+      general: generalRef,
+      notifications: notificationsRef,
+      verification: verificationRef,
+    };
+    targets[section].current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   return (
@@ -120,24 +83,49 @@ const SettingsPage: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sidebar Navigation (Visual Only for now) */}
+          {/* Sidebar Navigation */}
           <div className="lg:col-span-1 space-y-2">
-            <button className="w-full flex items-center gap-3 px-4 py-3 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-lg text-left font-medium">
+            <button
+              type="button"
+              onClick={() => scrollToSection('general')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-medium transition-colors ${
+                activeSection === 'general'
+                  ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                  : 'text-slate-400 hover:bg-slate-800/50 border border-transparent'
+              }`}
+            >
               <Settings size={20} />
               General Preferences
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800/50 rounded-lg text-left transition-colors">
+            <button
+              type="button"
+              onClick={() => scrollToSection('notifications')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-colors ${
+                activeSection === 'notifications'
+                  ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/20'
+                  : 'text-slate-400 hover:bg-slate-800/50 border border-transparent'
+              }`}
+            >
               <Bell size={20} />
               Notifications & DND
             </button>
-            <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-800/50 rounded-lg text-left transition-colors">
-              <Shield size={20} />
-              Privacy & Security
+            <button
+              type="button"
+              onClick={() => scrollToSection('verification')}
+              className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 ${
+                activeSection === 'verification' 
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <UserCheck size={18} />
+              <span className="font-medium">Verification & Security</span>
             </button>
           </div>
 
           <div className="lg:col-span-2 space-y-6">
             {/* Preferences Section */}
+            <div ref={generalRef}>
             <Card className="p-6 bg-slate-800/50 border-slate-700">
               <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                 <Settings size={18} className="text-emerald-500" />
@@ -202,8 +190,10 @@ const SettingsPage: React.FC = () => {
                 </Button>
               </div>
             </Card>
+            </div>
 
             {/* Notifications & DND */}
+            <div ref={notificationsRef}>
             <Card className="p-6 bg-slate-800/50 border-slate-700">
               <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
                 <Bell size={18} className="text-emerald-500" />
@@ -263,99 +253,42 @@ const SettingsPage: React.FC = () => {
                 <p className="mt-2 text-[10px] text-slate-500 italic">Critical disaster warnings will bypass DND settings.</p>
               </div>
             </Card>
+            </div>
 
-            {/* Alert Rules Section */}
-            <Card className="p-6 bg-slate-800/50 border-slate-700">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <AlertTriangle size={18} className="text-amber-500" />
-                  Custom Alert Rules
-                </h3>
-                <Button size="sm" icon={<Plus size={16} />} onClick={openCreateModal}>
-                  Create Rule
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {fetchingRules ? (
-                  <div className="flex flex-col items-center py-12 text-slate-500">
-                    <Loader2 className="animate-spin mb-4" />
-                    <p>Fetching your custom rules...</p>
-                  </div>
-                ) : alertRules.length === 0 ? (
-                  <div className="text-center py-12 bg-slate-900/20 rounded-xl border border-dashed border-slate-700">
-                    <Zap size={32} className="mx-auto text-slate-600 mb-3" />
-                    <p className="text-slate-500 text-sm">No alert rules configured yet.</p>
-                    <button onClick={openCreateModal} className="mt-2 text-emerald-500 text-sm font-bold hover:underline">
-                      Add your first rule
-                    </button>
-                  </div>
-                ) : (
-                  alertRules.map(rule => (
-                    <div key={rule.id} className={`p-4 rounded-xl border transition-all ${
-                      rule.isActive ? 'bg-slate-900/50 border-slate-700' : 'bg-slate-900/20 border-slate-800 opacity-60'
-                    }`}>
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-white">{rule.name}</h4>
-                            <Badge variant={rule.isActive ? 'active' : 'neutral'} size="sm">
-                              {rule.isActive ? 'Active' : 'Paused'}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-slate-400">
-                            Triggers when <span className="text-emerald-400 font-mono">{rule.parameter}</span> {rule.operator} {rule.threshold} in <span className="text-white">{rule.spatialUnitName}</span>
-                          </p>
-                          <div className="flex items-center gap-3 mt-2">
-                            <span className="text-[10px] text-slate-500 flex items-center gap-1">
-                              <Clock size={10} /> Cooldown: {rule.cooldownHours}h
-                            </span>
-                            {rule.lastTriggeredAt && (
-                              <span className="text-[10px] text-amber-500/80 flex items-center gap-1">
-                                <Zap size={10} /> Last triggered: {new Date(rule.lastTriggeredAt).toLocaleDateString()}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={() => toggleRule(rule.id)}
-                            className={`p-2 rounded-lg transition-colors ${
-                              rule.isActive ? 'text-amber-500 hover:bg-amber-500/10' : 'text-emerald-500 hover:bg-emerald-500/10'
-                            }`}
-                            title={rule.isActive ? 'Pause' : 'Activate'}
-                          >
-                            <Power size={16} />
-                          </button>
-                          <button 
-                            onClick={() => openEditModal(rule)}
-                            className="p-2 text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition-colors"
-                          >
-                            <Edit2 size={16} />
-                          </button>
-                          <button 
-                            onClick={() => deleteRule(rule.id)}
-                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
+            {/* Alert Rules - Link to dedicated page */}
+            <Link to="/alerts" className="block">
+              <Card className="p-5 bg-gradient-to-r from-amber-500/10 to-orange-500/5 border-amber-500/20 hover:border-amber-500/40 transition-all group">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-xl bg-amber-500/20 flex items-center justify-center">
+                      <BellRing size={24} className="text-amber-500" />
                     </div>
-                  ))
-                )}
-              </div>
-            </Card>
+                    <div>
+                      <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                        My Alert Rules
+                        <ChevronRight size={18} className="text-slate-500 group-hover:translate-x-1 transition-transform" />
+                      </h3>
+                      <p className="text-sm text-slate-400">
+                        Manage custom weather alerts with forecast aggregation
+                      </p>
+                    </div>
+                  </div>
+                  <div className="hidden sm:block text-right">
+                    <p className="text-xs text-slate-500">Includes</p>
+                    <p className="text-xs text-amber-400">MAX, SUM, AVG aggregations</p>
+                  </div>
+                </div>
+              </Card>
+            </Link>
+
+            {/* Verification & Volunteer Section */}
+            <div ref={verificationRef}>
+              <VerificationSection />
+            </div>
           </div>
         </div>
       </div>
 
-      <CreateAlertRuleModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onSuccess={fetchAlertRules}
-        initialData={editingRule}
-      />
     </>
   );
 };

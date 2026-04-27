@@ -28,6 +28,7 @@ public class AuthService {
     private final UserSessionRepository userSessionRepository;
     private final UserPreferencesRepository userPreferencesRepository;
     private final LoginAttemptRepository loginAttemptRepository;
+    private final VerificationService verificationService;
     private final JwtTokenProvider jwtTokenProvider;
     private final JwtProperties jwtProperties;
     private final PasswordEncoder passwordEncoder;
@@ -41,6 +42,7 @@ public class AuthService {
                        UserSessionRepository userSessionRepository,
                        UserPreferencesRepository userPreferencesRepository,
                        LoginAttemptRepository loginAttemptRepository,
+                       VerificationService verificationService,
                        JwtTokenProvider jwtTokenProvider,
                        JwtProperties jwtProperties,
                        PasswordEncoder passwordEncoder) {
@@ -49,6 +51,7 @@ public class AuthService {
         this.userSessionRepository = userSessionRepository;
         this.userPreferencesRepository = userPreferencesRepository;
         this.loginAttemptRepository = loginAttemptRepository;
+        this.verificationService = verificationService;
         this.jwtTokenProvider = jwtTokenProvider;
         this.jwtProperties = jwtProperties;
         this.passwordEncoder = passwordEncoder;
@@ -112,6 +115,16 @@ public class AuthService {
                 .build();
         userPreferencesRepository.save(preferences);
 
+        // Send email verification OTP (async - don't block registration if email fails)
+        boolean verificationSent = false;
+        try {
+            verificationService.requestEmailVerification(user.getId(), user.getEmail(), "registration");
+            verificationSent = true;
+        } catch (Exception e) {
+            // Log but don't fail registration - user can request verification again later
+            System.err.println("[Auth] Failed to send verification email to " + user.getEmail() + ": " + e.getMessage());
+        }
+
         // Generate access token
         Set<String> roleNames = user.getRoles().stream()
                 .map(Role::getName)
@@ -124,6 +137,10 @@ public class AuthService {
         return AuthResponse.builder()
                 .accessToken(accessToken)
                 .user(toUserDto(user))
+                .emailVerificationSent(verificationSent)
+                .message(verificationSent 
+                    ? "Registration successful! Please check your email to verify your account." 
+                    : "Registration successful! Please verify your email in settings.")
                 .build();
     }
 
@@ -134,6 +151,17 @@ public class AuthService {
 
         if (!user.getIsActive()) {
             throw new UnauthorizedException("Account is deactivated");
+        }
+
+        // Enforce email verification
+        if (!Boolean.TRUE.equals(user.getEmailVerified())) {
+            // Send a new verification code automatically
+            try {
+                verificationService.requestEmailVerification(user.getId(), user.getEmail(), getClientIp(request));
+            } catch (Exception e) {
+                System.err.println("[Auth] Failed to resend verification email: " + e.getMessage());
+            }
+            throw new UnauthorizedException("Email not verified. Please check your email for a verification code, or request a new one.");
         }
 
         // Check for too many failed attempts (5 in last 15 min)
@@ -287,6 +315,9 @@ public class AuthService {
                 .email(user.getEmail())
                 .displayName(user.getDisplayName())
                 .avatarUrl(user.getAvatarUrl())
+                .phone(user.getPhone())
+                .emailVerified(user.getEmailVerified())
+                .phoneVerified(user.getPhoneVerified())
                 .roles(roles)
                 .build();
     }

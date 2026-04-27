@@ -17,5 +17,8 @@ public class UserDto {
     private String email;
     private String displayName;
     private String avatarUrl;
+    private String phone;
+    private Boolean emailVerified;
+    private Boolean phoneVerified;
     private List<String> roles;
 }

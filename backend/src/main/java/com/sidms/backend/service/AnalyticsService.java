@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -22,29 +23,41 @@ public class AnalyticsService {
     private final SpatialUnitRepository spatialUnitRepository;
     private final SpatialUnitWeatherNodeMappingRepository mappingRepository;
     private final WeatherNodeHistoricalDailyRepository historicalRepository;
-    private final ForecastProjectionRepository forecastProjectionRepository;
     private final WarningSpatialUnitRepository warningSpatialUnitRepository;
     private final DisasterWarningRepository disasterWarningRepository;
-    private final ForecastComparisonRepository forecastComparisonRepository;
+    private final NodeTimeseriesRepository nodeTimeseriesRepository;
+    private final StationObservationRepository stationObservationRepository;
+    private final JaxaRainGridRepository jaxaRainGridRepository;
+    private final BiasHistoryRepository biasHistoryRepository;
+    private final WeatherNodeRepository weatherNodeRepository;
+    private final StationMetadataRepository stationMetadataRepository;
     private final StringRedisTemplate redisTemplate;
     private final ObjectMapper objectMapper;
 
     public AnalyticsService(SpatialUnitRepository spatialUnitRepository,
             SpatialUnitWeatherNodeMappingRepository mappingRepository,
             WeatherNodeHistoricalDailyRepository historicalRepository,
-            ForecastProjectionRepository forecastProjectionRepository,
             WarningSpatialUnitRepository warningSpatialUnitRepository,
             DisasterWarningRepository disasterWarningRepository,
-            ForecastComparisonRepository forecastComparisonRepository,
+            NodeTimeseriesRepository nodeTimeseriesRepository,
+            StationObservationRepository stationObservationRepository,
+            JaxaRainGridRepository jaxaRainGridRepository,
+            BiasHistoryRepository biasHistoryRepository,
+            WeatherNodeRepository weatherNodeRepository,
+            StationMetadataRepository stationMetadataRepository,
             StringRedisTemplate redisTemplate,
             ObjectMapper objectMapper) {
         this.spatialUnitRepository = spatialUnitRepository;
         this.mappingRepository = mappingRepository;
         this.historicalRepository = historicalRepository;
-        this.forecastProjectionRepository = forecastProjectionRepository;
         this.warningSpatialUnitRepository = warningSpatialUnitRepository;
         this.disasterWarningRepository = disasterWarningRepository;
-        this.forecastComparisonRepository = forecastComparisonRepository;
+        this.nodeTimeseriesRepository = nodeTimeseriesRepository;
+        this.stationObservationRepository = stationObservationRepository;
+        this.jaxaRainGridRepository = jaxaRainGridRepository;
+        this.biasHistoryRepository = biasHistoryRepository;
+        this.weatherNodeRepository = weatherNodeRepository;
+        this.stationMetadataRepository = stationMetadataRepository;
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
     }
@@ -174,37 +187,250 @@ public class AnalyticsService {
                 .collect(Collectors.toList());
     }
 
-    // ── Forecasts ───────────────────────────────────────────
+    // ── Forecasts (from node_timeseries with IDW) ───────────
 
     private List<ForecastDto> loadForecasts(UUID spatialUnitId) {
-        LocalDate today = LocalDate.now();
-        LocalDate end = today.plusDays(14);
+        List<SpatialUnitWeatherNodeMapping> mappings = mappingRepository
+                .findBySpatialUnitIdOrderByRankAsc(spatialUnitId);
 
-        List<ForecastProjection> projections = forecastProjectionRepository
-                .findBySpatialUnitIdAndMetricAndForecastDateBetween(
-                        spatialUnitId, "precipitation", today, end);
-
-        if (projections.isEmpty()) {
-            // Try any metric
-            projections = forecastProjectionRepository.findBySpatialUnitIdAndForecastDateBetween(
-                    spatialUnitId, today, end);
+        if (mappings.isEmpty()) {
+            return List.of();
         }
 
-        // Group by date, pick precipitation or first available
-        Map<LocalDate, ForecastProjection> byDate = new TreeMap<>();
-        for (ForecastProjection fp : projections) {
-            byDate.putIfAbsent(fp.getForecastDate(), fp);
-        }
-
-        return byDate.values().stream()
-                .map(fp -> ForecastDto.builder()
-                        .date(fp.getForecastDate())
-                        .predictedPrecip(fp.getPointEstimate())
-                        .lowerBound(fp.getLowerBound())
-                        .upperBound(fp.getUpperBound())
-                        .qualityScore(fp.getQualityScore())
-                        .build())
+        // Get top 6 nearest nodes with their weights
+        List<SpatialUnitWeatherNodeMapping> topMappings = mappings.stream()
+                .limit(6)
                 .collect(Collectors.toList());
+
+        List<UUID> nodeIds = topMappings.stream()
+                .map(SpatialUnitWeatherNodeMapping::getWeatherNodeId)
+                .collect(Collectors.toList());
+
+        Map<UUID, Double> weightMap = topMappings.stream()
+                .collect(Collectors.toMap(
+                    SpatialUnitWeatherNodeMapping::getWeatherNodeId,
+                    SpatialUnitWeatherNodeMapping::getIdwWeight));
+
+        // Fetch node timeseries forecasts for next 14 days (336 hours)
+        List<NodeTimeseries> allForecasts = nodeTimeseriesRepository.findByNodeIdInOrderByForecastHourAsc(nodeIds);
+
+        // Group by forecast date (aggregate hourly to daily)
+        Map<LocalDate, List<NodeTimeseriesForecast>> byDate = new TreeMap<>();
+
+        for (NodeTimeseries ts : allForecasts) {
+            if (ts.getValidFromUtc() == null || ts.getForecastHour() == null) continue;
+            LocalDate forecastDate = ts.getValidFromUtc().plusHours(ts.getForecastHour()).toLocalDate();
+            double weight = weightMap.getOrDefault(ts.getNodeId(), 1.0);
+
+            byDate.computeIfAbsent(forecastDate, k -> new ArrayList<>())
+                  .add(new NodeTimeseriesForecast(ts, weight));
+        }
+
+        // Compute IDW weighted averages per day
+        List<ForecastDto> forecasts = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+
+        for (Map.Entry<LocalDate, List<NodeTimeseriesForecast>> entry : byDate.entrySet()) {
+            LocalDate date = entry.getKey();
+            if (date.isBefore(today) || date.isAfter(today.plusDays(14))) {
+                continue; // Only next 14 days
+            }
+
+            double wPrecip = 0, swPrecip = 0;
+            double wTemp = 0, swTemp = 0;
+            double wTempMax = 0, swTempMax = 0;
+            double wTempMin = 0, swTempMin = 0;
+            List<Double> precipValues = new ArrayList<>();
+
+            for (NodeTimeseriesForecast nf : entry.getValue()) {
+                NodeTimeseries ts = nf.data;
+                double w = nf.weight;
+
+                // Accumulate precipitation (sum per day)
+                if (ts.getPrecipitationMm() != null) {
+                    wPrecip += ts.getPrecipitationMm().doubleValue() * w;
+                    swPrecip += w;
+                    precipValues.add(ts.getPrecipitationMm().doubleValue());
+                }
+
+                // Temperature (mean of hourly)
+                if (ts.getTemperatureC() != null) {
+                    double temp = ts.getTemperatureC().doubleValue();
+                    // Apply bias correction
+                    Optional<WeatherNode> nodeOpt = weatherNodeRepository.findById(ts.getNodeId());
+                    double bias = nodeOpt.map(n -> n.getBiasTempC() != null ? n.getBiasTempC() : 0.0).orElse(0.0);
+                    wTemp += (temp + bias) * w;
+                    swTemp += w;
+                }
+
+                // Track max/min temps
+                if (ts.getTempMaxC() != null) {
+                    wTempMax += ts.getTempMaxC().doubleValue() * w;
+                    swTempMax += w;
+                }
+                if (ts.getTempMinC() != null) {
+                    wTempMin += ts.getTempMinC().doubleValue() * w;
+                    swTempMin += w;
+                }
+            }
+
+            Double avgPrecip = safeDivide(wPrecip, swPrecip);
+            Double stdPrecip = computeStdDevFromList(precipValues);
+
+            // Confidence bounds: ±1 standard error for 68% confidence
+            Double upperBound = avgPrecip != null && stdPrecip != null ? avgPrecip + stdPrecip : null;
+            Double lowerBound = avgPrecip != null && stdPrecip != null ? Math.max(0, avgPrecip - stdPrecip) : null;
+
+            forecasts.add(ForecastDto.builder()
+                    .date(date)
+                    .predictedPrecip(avgPrecip)
+                    .upperBound(upperBound)
+                    .lowerBound(lowerBound)
+                    .qualityScore(swPrecip > 0 ? 1.0 : 0.0) // Data coverage score
+                    .build());
+        }
+
+        return forecasts;
+    }
+
+    // Helper class for node timeseries with weight
+    private static class NodeTimeseriesForecast {
+        final NodeTimeseries data;
+        final double weight;
+
+        NodeTimeseriesForecast(NodeTimeseries data, double weight) {
+            this.data = data;
+            this.weight = weight;
+        }
+    }
+
+    private Double computeStdDevFromList(List<Double> values) {
+        if (values.size() < 2) return 0.0;
+        double mean = values.stream().mapToDouble(d -> d).average().orElse(0);
+        double sumSq = values.stream().mapToDouble(d -> (d - mean) * (d - mean)).sum();
+        return Math.sqrt(sumSq / (values.size() - 1));
+    }
+
+    public ForecastAccuracyDto getForecastAccuracy(UUID spatialUnitId, Integer days, String metric) {
+        // Get spatial unit mappings
+        List<SpatialUnitWeatherNodeMapping> mappings = mappingRepository
+                .findBySpatialUnitIdOrderByRankAsc(spatialUnitId);
+
+        if (mappings.isEmpty()) {
+            return ForecastAccuracyDto.builder()
+                    .spatialUnitId(spatialUnitId)
+                    .totalForecasts(0)
+                    .mae(0.0)
+                    .hitRate(0.0)
+                    .build();
+        }
+
+        List<UUID> nodeIds = mappings.stream()
+                .map(SpatialUnitWeatherNodeMapping::getWeatherNodeId)
+                .collect(Collectors.toList());
+
+        // Calculate accuracy from bias_history table (tracks model errors)
+        LocalDateTime since = LocalDateTime.now().minusDays(days);
+
+        // Get bias records for these nodes
+        List<BiasHistory> biases = biasHistoryRepository.findByNodeIdInAndTimestampUtcAfter(nodeIds, since);
+
+        if (biases.isEmpty()) {
+            return ForecastAccuracyDto.builder()
+                    .spatialUnitId(spatialUnitId)
+                    .totalForecasts(0)
+                    .mae(0.0)
+                    .hitRate(0.0)
+                    .build();
+        }
+
+        // Calculate MAE (Mean Absolute Error) from bias values
+        double totalMae = 0;
+        int count = 0;
+        int hits = 0;
+
+        for (BiasHistory bias : biases) {
+            if (bias.getBiasValue() != null) {
+                double biasVal = bias.getBiasValue().doubleValue();
+                totalMae += Math.abs(biasVal);
+                count++;
+                // Consider it a "hit" if bias is within acceptable threshold
+                if (Math.abs(biasVal) <= 2.0) hits++;
+            }
+        }
+
+        double mae = count > 0 ? totalMae / count : 0.0;
+        double hitRate = count > 0 ? (double) hits / count * 100 : 0.0;
+
+        return ForecastAccuracyDto.builder()
+                .spatialUnitId(spatialUnitId)
+                .totalForecasts(count)
+                .mae(round2(mae))
+                .hitRate(round2(hitRate))
+                .build();
+    }
+
+    public List<ForecastHistoryPointDto> getForecastHistoryPoints(UUID spatialUnitId, String metric, Integer days) {
+        List<SpatialUnitWeatherNodeMapping> mappings = mappingRepository
+                .findBySpatialUnitIdOrderByRankAsc(spatialUnitId);
+
+        if (mappings.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> nodeIds = mappings.stream()
+                .map(SpatialUnitWeatherNodeMapping::getWeatherNodeId)
+                .collect(Collectors.toList());
+
+        // Get recent bias history
+        LocalDateTime since = LocalDateTime.now().minusDays(days);
+        List<BiasHistory> biases = biasHistoryRepository.findByNodeIdInAndTimestampUtcAfter(nodeIds, since);
+
+        List<ForecastHistoryPointDto> history = new ArrayList<>();
+
+        // Get station observations for comparison
+        List<StationObservation> observations = stationObservationRepository.findByTimestampUtcAfter(since);
+
+        // Match observations to create history points
+        for (StationObservation obs : observations) {
+            if (obs.getTimestampUtc() == null) continue;
+
+            Double actualValue = null;
+            if ("temperature".equals(metric) && obs.getTemperatureC() != null) {
+                actualValue = obs.getTemperatureC().doubleValue();
+            } else if ("precipitation".equals(metric) && obs.getRainfallMm() != null) {
+                actualValue = obs.getRainfallMm().doubleValue();
+            }
+
+            if (actualValue == null) continue;
+
+            // Find matching bias record for the same time window
+            Optional<BiasHistory> matchingBias = biases.stream()
+                    .filter(b -> b.getTimestampUtc() != null &&
+                            Math.abs(java.time.Duration.between(b.getTimestampUtc(), obs.getTimestampUtc()).toHours()) <= 3)
+                    .findFirst();
+
+            Double biasValue = matchingBias.map(b -> b.getBiasValue() != null ? b.getBiasValue().doubleValue() : null).orElse(null);
+            Double predictedValue = biasValue != null ? actualValue + biasValue : null;
+            Double absoluteError = biasValue != null ? Math.abs(biasValue) : null;
+
+            double confidenceThreshold = "temperature".equals(metric) ? 2.0 : 5.0;
+            boolean hit = absoluteError != null && absoluteError <= confidenceThreshold;
+
+            history.add(ForecastHistoryPointDto.builder()
+                    .targetDate(obs.getTimestampUtc().toLocalDate())
+                    .predictedValue(predictedValue != null ? round2(predictedValue) : null)
+                    .actualValue(round2(actualValue))
+                    .absoluteError(absoluteError != null ? round2(absoluteError) : null)
+                    .confidenceHit(hit)
+                    .actualRecordedAt(obs.getTimestampUtc())
+                    .build());
+        }
+
+        // Sort by date descending
+        history.sort((a, b) -> b.getTargetDate().compareTo(a.getTargetDate()));
+
+        return history.stream().limit(100).collect(Collectors.toList()); // Limit to 100 points
     }
 
     // ── Anomaly detection (on-the-fly from recent vs monthly norms) ─
@@ -339,127 +565,7 @@ public class AnalyticsService {
         return stats;
     }
 
-    @org.springframework.transaction.annotation.Transactional
-    public void saveForecastsForComparison(UUID spatialUnitId, UUID projectionId, String metric,
-            List<Double> predictions, List<Double> lowerBounds, List<Double> upperBounds) {
-        LocalDateTime now = LocalDateTime.now();
-        LocalDate today = LocalDate.now();
 
-        for (int day = 0; day < predictions.size(); day++) {
-            LocalDate targetDate = today.plusDays(day + 1);
-
-            Double lower = (lowerBounds != null && day < lowerBounds.size()) ? lowerBounds.get(day) : null;
-            Double upper = (upperBounds != null && day < upperBounds.size()) ? upperBounds.get(day) : null;
-
-            ForecastComparison comparison = ForecastComparison.builder()
-                    .forecastProjectionId(projectionId)
-                    .spatialUnitId(spatialUnitId)
-                    .metric(metric)
-                    .targetDate(targetDate)
-                    .forecastGeneratedAt(now)
-                    .predictedValue(predictions.get(day))
-                    .confidenceLower(lower)
-                    .confidenceUpper(upper)
-                    .createdAt(now)
-                    .build();
-
-            forecastComparisonRepository.save(comparison);
-        }
-    }
-
-    @org.springframework.transaction.annotation.Transactional
-    public void updateForecastWithActuals(UUID spatialUnitId, String metric, LocalDate targetDate, Double actualValue) {
-        Optional<ForecastComparison> opt = forecastComparisonRepository
-                .findFirstBySpatialUnitIdAndMetricAndTargetDateAndActualValueIsNullOrderByForecastGeneratedAtDesc(
-                        spatialUnitId, metric, targetDate);
-
-        if (opt.isEmpty())
-            return;
-
-        ForecastComparison comp = opt.get();
-        comp.setActualValue(actualValue);
-        comp.setActualRecordedAt(LocalDateTime.now());
-
-        double error = Math.abs(actualValue - comp.getPredictedValue());
-        comp.setAbsoluteError(error);
-
-        if (comp.getPredictedValue() != 0) {
-            comp.setPercentError((actualValue - comp.getPredictedValue()) / comp.getPredictedValue() * 100.0);
-        } else {
-            comp.setPercentError(0.0);
-        }
-
-        if (comp.getConfidenceLower() != null && comp.getConfidenceUpper() != null) {
-            comp.setConfidenceHit(actualValue >= comp.getConfidenceLower() && actualValue <= comp.getConfidenceUpper());
-        }
-
-        forecastComparisonRepository.save(comp);
-    }
-
-    public ForecastAccuracyDto getForecastAccuracy(UUID spatialUnitId, Integer days, String metric) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days != null ? days : 30);
-        List<ForecastComparison> comparisons;
-
-        if (metric != null && !metric.equals("all")) {
-            comparisons = forecastComparisonRepository
-                    .findBySpatialUnitIdAndMetricAndActualRecordedAtAfterOrderByTargetDateDesc(spatialUnitId, metric,
-                            cutoff);
-        } else {
-            comparisons = forecastComparisonRepository
-                    .findBySpatialUnitIdAndActualRecordedAtAfterOrderByTargetDateDesc(spatialUnitId, cutoff);
-        }
-
-        if (comparisons.isEmpty()) {
-            return ForecastAccuracyDto.builder()
-                    .spatialUnitId(spatialUnitId)
-                    .totalForecasts(0)
-                    .hitRate(0.0)
-                    .mae(0.0)
-                    .build();
-        }
-
-        double totalError = 0;
-        int hits = 0;
-        int confHits = 0;
-        int count = comparisons.size();
-
-        for (ForecastComparison c : comparisons) {
-            totalError += c.getAbsoluteError() != null ? c.getAbsoluteError() : 0;
-            if (c.getConfidenceHit() != null && c.getConfidenceHit()) {
-                confHits++;
-            }
-        }
-
-        return ForecastAccuracyDto.builder()
-                .spatialUnitId(spatialUnitId)
-                .totalForecasts(count)
-                .mae(round2(totalError / count))
-                .hitRate(round2((double) confHits / count * 100.0))
-                .build();
-    }
-
-    public List<ForecastComparison> getForecastHistory(UUID spatialUnitId, String metric, Integer days) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days != null ? days : 30);
-        return forecastComparisonRepository.findBySpatialUnitIdAndMetricAndActualRecordedAtAfterOrderByTargetDateDesc(
-                spatialUnitId, metric, cutoff);
-    }
-
-    public List<ForecastHistoryPointDto> getForecastHistoryPoints(UUID spatialUnitId, String metric, Integer days) {
-        return getForecastHistory(spatialUnitId, metric, days).stream()
-                .map(c -> ForecastHistoryPointDto.builder()
-                        .targetDate(c.getTargetDate())
-                        .predictedValue(c.getPredictedValue())
-                        .actualValue(c.getActualValue())
-                        .confidenceLower(c.getConfidenceLower())
-                        .confidenceUpper(c.getConfidenceUpper())
-                        .absoluteError(c.getAbsoluteError())
-                        .percentError(c.getPercentError())
-                        .confidenceHit(c.getConfidenceHit())
-                        .forecastGeneratedAt(c.getForecastGeneratedAt())
-                        .actualRecordedAt(c.getActualRecordedAt())
-                        .build())
-                .collect(Collectors.toList());
-    }
 
     // ── Warning history (ancestor-aware) ────────────────────
 
@@ -505,6 +611,353 @@ public class AnalyticsService {
                 .landslideWarnings(landslideCount)
                 .lastWarningAt(lastWarningAt)
                 .build();
+    }
+
+    // ── Satellite Rainfall Comparison (JAXA vs Station vs Model) ─
+
+    public List<SatelliteRainfallDto> getSatelliteRainfallComparison(UUID spatialUnitId, Integer days) {
+        List<SpatialUnitWeatherNodeMapping> mappings = mappingRepository
+                .findBySpatialUnitIdOrderByRankAsc(spatialUnitId);
+
+        if (mappings.isEmpty()) {
+            return List.of();
+        }
+
+        SpatialUnit spatialUnit = spatialUnitRepository.findById(spatialUnitId).orElse(null);
+        if (spatialUnit == null) return List.of();
+
+        LocalDateTime since = LocalDateTime.now().minusDays(days);
+        LocalDate today = LocalDate.now();
+
+        // Get JAXA rainfall data for the spatial unit area
+        double lat = spatialUnit.getLat() != null ? spatialUnit.getLat() : 7.0;
+        double lng = spatialUnit.getLng() != null ? spatialUnit.getLng() : 80.0;
+
+        // Find nearest JAXA grid points (±0.1 degree)
+        List<JaxaRainGrid> jaxaData = jaxaRainGridRepository.findByGridLatBetweenAndGridLonBetweenAndTimestampUtcAfter(
+                BigDecimal.valueOf(lat - 0.15), BigDecimal.valueOf(lat + 0.15),
+                BigDecimal.valueOf(lng - 0.15), BigDecimal.valueOf(lng + 0.15),
+                since);
+
+        // Aggregate JAXA by date
+        Map<LocalDate, List<Double>> jaxaByDate = jaxaData.stream()
+                .filter(j -> j.getTimestampUtc() != null && j.getRainfallMm() != null)
+                .collect(Collectors.groupingBy(
+                    j -> j.getTimestampUtc().toLocalDate(),
+                    Collectors.mapping(j -> j.getRainfallMm().doubleValue(), Collectors.toList())));
+
+        // Find nearest stations
+        List<StationMetadata> allStations = stationMetadataRepository.findAll();
+        List<StationDistance> nearbyStations = allStations.stream()
+                .map(s -> new StationDistance(s, calculateDistance(lat, lng, s.getLatitude().doubleValue(), s.getLongitude().doubleValue())))
+                .filter(sd -> sd.distance <= 25.0) // Within 25km
+                .sorted(Comparator.comparingDouble(sd -> sd.distance))
+                .limit(3)
+                .collect(Collectors.toList());
+
+        // Get station observations
+        Map<LocalDate, List<Double>> stationByDate = new HashMap<>();
+        for (StationDistance sd : nearbyStations) {
+            List<StationObservation> obs = stationObservationRepository
+                    .findByStationIdAndTimestampUtcAfter(sd.station.getStationId(), since);
+            for (StationObservation o : obs) {
+                if (o.getTimestampUtc() != null && o.getRainfallMm() != null) {
+                    stationByDate.computeIfAbsent(o.getTimestampUtc().toLocalDate(), k -> new ArrayList<>())
+                            .add(o.getRainfallMm().doubleValue());
+                }
+            }
+        }
+
+        // Get model forecasts from node_timeseries
+        List<UUID> nodeIds = mappings.stream().limit(6).map(SpatialUnitWeatherNodeMapping::getWeatherNodeId).collect(Collectors.toList());
+        List<NodeTimeseries> forecasts = nodeTimeseriesRepository.findByNodeIdInOrderByForecastHourAsc(nodeIds);
+
+        Map<LocalDate, List<Double>> modelByDate = forecasts.stream()
+                .filter(n -> n.getValidFromUtc() != null && n.getForecastHour() != null && n.getPrecipitationMm() != null)
+                .collect(Collectors.groupingBy(
+                    n -> n.getValidFromUtc().plusHours(n.getForecastHour()).toLocalDate(),
+                    Collectors.mapping(n -> n.getPrecipitationMm().doubleValue(), Collectors.toList())));
+
+        // Build daily comparison
+        List<SatelliteRainfallDto> results = new ArrayList<>();
+        LocalDate startDate = today.minusDays(days);
+
+        for (LocalDate date = startDate; !date.isAfter(today); date = date.plusDays(1)) {
+            Double satelliteRain = jaxaByDate.getOrDefault(date, List.of()).stream()
+                    .mapToDouble(d -> d).average().orElse(0.0);
+
+            List<Double> stationValues = stationByDate.getOrDefault(date, List.of());
+            Double stationRain = !stationValues.isEmpty() ?
+                    stationValues.stream().mapToDouble(d -> d).sum() : null;
+
+            List<Double> modelValues = modelByDate.getOrDefault(date, List.of());
+            Double modelRain = !modelValues.isEmpty() ?
+                    modelValues.stream().mapToDouble(d -> d).sum() : 0.0;
+
+            // Determine primary source
+            String primarySource;
+            if (stationRain != null && stationValues.size() >= 3) {
+                primarySource = "STATION";
+            } else if (satelliteRain > 0 || !jaxaByDate.getOrDefault(date, List.of()).isEmpty()) {
+                primarySource = "SATELLITE";
+            } else {
+                primarySource = "MODEL";
+            }
+
+            Double discrepancy = null;
+            if (stationRain != null && stationRain > 0) {
+                discrepancy = Math.round(((satelliteRain - stationRain) / stationRain) * 100.0 * 100.0) / 100.0;
+            }
+
+            results.add(SatelliteRainfallDto.builder()
+                    .date(date)
+                    .satelliteRainMm(satelliteRain > 0 ? round2(satelliteRain) : null)
+                    .stationRainMm(stationRain != null ? round2(stationRain) : null)
+                    .modelRainMm(modelRain > 0 ? round2(modelRain) : null)
+                    .discrepancyPercent(discrepancy)
+                    .primarySource(primarySource)
+                    .build());
+        }
+
+        return results;
+    }
+
+    // ── Station Comparison (Ground Truth vs Model) ─────────
+
+    public List<StationComparisonDto> getStationComparison(UUID spatialUnitId) {
+        List<SpatialUnitWeatherNodeMapping> mappings = mappingRepository
+                .findBySpatialUnitIdOrderByRankAsc(spatialUnitId);
+
+        if (mappings.isEmpty()) {
+            return List.of();
+        }
+
+        SpatialUnit spatialUnit = spatialUnitRepository.findById(spatialUnitId).orElse(null);
+        if (spatialUnit == null) return List.of();
+
+        double targetLat = spatialUnit.getLat() != null ? spatialUnit.getLat() : 7.0;
+        double targetLng = spatialUnit.getLng() != null ? spatialUnit.getLng() : 80.0;
+
+        // Find all stations within 50km
+        List<StationMetadata> allStations = stationMetadataRepository.findAll();
+        List<StationDistance> nearbyStations = allStations.stream()
+                .map(s -> new StationDistance(s, calculateDistance(targetLat, targetLng, s.getLatitude().doubleValue(), s.getLongitude().doubleValue())))
+                .filter(sd -> sd.distance <= 50.0)
+                .sorted(Comparator.comparingDouble(sd -> sd.distance))
+                .collect(Collectors.toList());
+
+        if (nearbyStations.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> nodeIds = mappings.stream().limit(6).map(SpatialUnitWeatherNodeMapping::getWeatherNodeId).collect(Collectors.toList());
+        Map<UUID, Double> weightMap = mappings.stream().limit(6)
+                .collect(Collectors.toMap(SpatialUnitWeatherNodeMapping::getWeatherNodeId, SpatialUnitWeatherNodeMapping::getIdwWeight));
+
+        List<StationComparisonDto> results = new ArrayList<>();
+
+        for (StationDistance sd : nearbyStations) {
+            StationMetadata station = sd.station;
+
+            // Get latest observation
+            Optional<StationObservation> latestObs = stationObservationRepository
+                    .findTopByStationIdOrderByTimestampUtcDesc(station.getStationId());
+
+            if (latestObs.isEmpty()) continue;
+
+            StationObservation obs = latestObs.get();
+            int ageMinutes = obs.getTimestampUtc() != null ?
+                    (int) java.time.Duration.between(obs.getTimestampUtc(), LocalDateTime.now()).toMinutes() : 9999;
+
+            // Skip stale data (> 6 hours)
+            if (ageMinutes > 360) continue;
+
+            // Get interpolated values from model
+            double interpTemp = 0, interpHumidity = 0, interpRain = 0;
+            double swTemp = 0, swHum = 0, swRain = 0;
+
+            List<NodeTimeseries> nodeForecasts = nodeTimeseriesRepository
+                    .findTopByNodeIdInOrderByForecastHourAsc(nodeIds);
+
+            for (NodeTimeseries nf : nodeForecasts) {
+                double w = weightMap.getOrDefault(nf.getNodeId(), 0.0);
+                if (w == 0) continue;
+
+                if (nf.getTemperatureC() != null) {
+                    interpTemp += nf.getTemperatureC().doubleValue() * w;
+                    swTemp += w;
+                }
+                if (nf.getHumidityPct() != null) {
+                    interpHumidity += nf.getHumidityPct().doubleValue() * w;
+                    swHum += w;
+                }
+                if (nf.getPrecipitationMm() != null) {
+                    interpRain += nf.getPrecipitationMm().doubleValue() * w;
+                    swRain += w;
+                }
+            }
+
+            Double finalInterpTemp = safeDivide(interpTemp, swTemp);
+            Double finalInterpHum = safeDivide(interpHumidity, swHum);
+            Double finalInterpRain = safeDivide(interpRain, swRain);
+
+            Double stationTemp = obs.getTemperatureC() != null ? obs.getTemperatureC().doubleValue() : null;
+            Double stationHum = obs.getHumidityPct() != null ? obs.getHumidityPct().doubleValue() : null;
+            Double stationRain = obs.getRainfallMm() != null ? obs.getRainfallMm().doubleValue() : null;
+
+            results.add(StationComparisonDto.builder()
+                    .stationId(station.getStationId())
+                    .stationName(station.getStationName())
+                    .stationLat(station.getLatitude().doubleValue())
+                    .stationLon(station.getLongitude().doubleValue())
+                    .distanceKm(round2(sd.distance))
+                    .stationTempC(stationTemp)
+                    .stationHumidityPct(stationHum)
+                    .stationRainfallMm(stationRain)
+                    .interpolatedTempC(finalInterpTemp)
+                    .interpolatedHumidityPct(finalInterpHum)
+                    .interpolatedRainfallMm(finalInterpRain)
+                    .tempBiasC(stationTemp != null && finalInterpTemp != null ? round2(finalInterpTemp - stationTemp) : null)
+                    .humidityBiasPct(stationHum != null && finalInterpHum != null ? round2(finalInterpHum - stationHum) : null)
+                    .rainfallBiasMm(stationRain != null && finalInterpRain != null ? round2(finalInterpRain - stationRain) : null)
+                    .observationTime(obs.getTimestampUtc())
+                    .dataQuality(ageMinutes <= 180 ? "STATION_DIRECT" : "MODEL_BIAS_CORRECTED")
+                    .stationAgeMinutes(ageMinutes)
+                    .build());
+        }
+
+        return results;
+    }
+
+    // ── Hourly Trend (for detailed time-series charts) ──────
+
+    public List<HourlyTrendDto> getHourlyTrend(UUID spatialUnitId, Integer hours, String metric) {
+        List<SpatialUnitWeatherNodeMapping> mappings = mappingRepository
+                .findBySpatialUnitIdOrderByRankAsc(spatialUnitId);
+
+        if (mappings.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> nodeIds = mappings.stream().limit(6).map(SpatialUnitWeatherNodeMapping::getWeatherNodeId).collect(Collectors.toList());
+        Map<UUID, Double> weightMap = mappings.stream().limit(6)
+                .collect(Collectors.toMap(SpatialUnitWeatherNodeMapping::getWeatherNodeId, SpatialUnitWeatherNodeMapping::getIdwWeight));
+
+        // Get hourly forecasts for requested period
+        List<NodeTimeseries> forecasts = nodeTimeseriesRepository.findByNodeIdInOrderByForecastHourAsc(nodeIds);
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime cutoff = now.minusHours(hours);
+
+        // Group by timestamp and IDW interpolate
+        Map<LocalDateTime, List<NodeTimeseriesForecast>> byTime = forecasts.stream()
+                .filter(n -> n.getValidFromUtc() != null && n.getForecastHour() != null)
+                .map(n -> new NodeTimeseriesForecast(n, weightMap.getOrDefault(n.getNodeId(), 0.0)))
+                .filter(nf -> nf.data.getValidFromUtc().plusHours(nf.data.getForecastHour()).isAfter(cutoff))
+                .collect(Collectors.groupingBy(
+                    nf -> nf.data.getValidFromUtc().plusHours(nf.data.getForecastHour()),
+                    TreeMap::new,
+                    Collectors.toList()));
+
+        List<HourlyTrendDto> results = new ArrayList<>();
+
+        for (Map.Entry<LocalDateTime, List<NodeTimeseriesForecast>> entry : byTime.entrySet()) {
+            LocalDateTime ts = entry.getKey();
+
+            double wTemp = 0, swTemp = 0;
+            double wPrecip = 0, swPrecip = 0;
+            double wHum = 0, swHum = 0;
+            double wWind = 0, swWind = 0;
+            double wDir = 0, swDir = 0;
+            double wPress = 0, swPress = 0;
+            double wCloud = 0, swCloud = 0;
+            List<String> symbols = new ArrayList<>();
+
+            for (NodeTimeseriesForecast nf : entry.getValue()) {
+                NodeTimeseries n = nf.data;
+                double w = nf.weight;
+                if (w == 0) continue;
+
+                if (n.getTemperatureC() != null) {
+                    wTemp += n.getTemperatureC().doubleValue() * w;
+                    swTemp += w;
+                }
+                if (n.getPrecipitationMm() != null) {
+                    wPrecip += n.getPrecipitationMm().doubleValue() * w;
+                    swPrecip += w;
+                }
+                if (n.getHumidityPct() != null) {
+                    wHum += n.getHumidityPct().doubleValue() * w;
+                    swHum += w;
+                }
+                if (n.getWindSpeedMs() != null) {
+                    wWind += n.getWindSpeedMs().doubleValue() * 3.6 * w; // Convert to km/h
+                    swWind += w;
+                }
+                if (n.getWindDirectionDeg() != null) {
+                    wDir += n.getWindDirectionDeg().doubleValue() * w;
+                    swDir += w;
+                }
+                if (n.getPressureHpa() != null) {
+                    wPress += n.getPressureHpa().doubleValue() * w;
+                    swPress += w;
+                }
+                if (n.getCloudCoverPct() != null) {
+                    wCloud += n.getCloudCoverPct().doubleValue() * w;
+                    swCloud += w;
+                }
+                if (n.getSymbolCode() != null) {
+                    symbols.add(n.getSymbolCode());
+                }
+            }
+
+            // Pick most common symbol
+            String symbol = symbols.isEmpty() ? null :
+                symbols.stream().collect(Collectors.groupingBy(s -> s, Collectors.counting()))
+                    .entrySet().stream().max(Map.Entry.comparingByValue()).map(Map.Entry::getKey).orElse(null);
+
+            results.add(HourlyTrendDto.builder()
+                    .timestamp(ts)
+                    .temperatureC(safeDivide(wTemp, swTemp))
+                    .precipitationMm(safeDivide(wPrecip, swPrecip))
+                    .humidityPct(safeDivide(wHum, swHum))
+                    .windSpeedKmh(safeDivide(wWind, swWind))
+                    .windDirectionDeg(safeDivide(wDir, swDir))
+                    .pressureHpa(safeDivide(wPress, swPress))
+                    .cloudCoverPct(safeDivide(wCloud, swCloud))
+                    .symbolCode(symbol)
+                    .dataSource("YRNO")
+                    .build());
+        }
+
+        // Limit to requested hours and reverse (newest first)
+        return results.stream()
+                .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                .limit(hours)
+                .collect(Collectors.toList());
+    }
+
+    // Helper class for station distance calculations
+    private static class StationDistance {
+        final StationMetadata station;
+        final double distance;
+
+        StationDistance(StationMetadata station, double distance) {
+            this.station = station;
+            this.distance = distance;
+        }
+    }
+
+    // Calculate distance between two lat/lon points using Haversine formula
+    private double calculateDistance(double lat1, double lon1, double lat2, double lon2) {
+        final int R = 6371; // Earth's radius in km
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
     }
 
     // ── Helpers ──────────────────────────────────────────────

@@ -1,8 +1,6 @@
 package com.sidms.backend.controller;
 
-import com.sidms.backend.dto.analytics.AnalyticsOverviewResponse;
-import com.sidms.backend.dto.analytics.ForecastAccuracyDto;
-import com.sidms.backend.dto.analytics.ForecastHistoryPointDto;
+import com.sidms.backend.dto.analytics.*;
 import com.sidms.backend.service.AnalyticsService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -39,5 +37,32 @@ public class AnalyticsController {
             @PathVariable String metric,
             @RequestParam(required = false, defaultValue = "30") Integer days) {
         return ResponseEntity.ok(analyticsService.getForecastHistoryPoints(spatialUnitId, metric, days));
+    }
+
+    // ── NEW: Satellite Rainfall Comparison (JAXA vs Station vs Model) ─
+
+    @GetMapping("/satellite-rain/{spatialUnitId}")
+    public ResponseEntity<List<SatelliteRainfallDto>> getSatelliteRainfall(
+            @PathVariable UUID spatialUnitId,
+            @RequestParam(required = false, defaultValue = "7") Integer days) {
+        return ResponseEntity.ok(analyticsService.getSatelliteRainfallComparison(spatialUnitId, days));
+    }
+
+    // ── NEW: Station Comparison (Ground Truth vs Model Interpolation) ─
+
+    @GetMapping("/station-comparison/{spatialUnitId}")
+    public ResponseEntity<List<StationComparisonDto>> getStationComparison(
+            @PathVariable UUID spatialUnitId) {
+        return ResponseEntity.ok(analyticsService.getStationComparison(spatialUnitId));
+    }
+
+    // ── NEW: Hourly Trend (Detailed time-series for charts) ─
+
+    @GetMapping("/hourly-trend/{spatialUnitId}")
+    public ResponseEntity<List<HourlyTrendDto>> getHourlyTrend(
+            @PathVariable UUID spatialUnitId,
+            @RequestParam(required = false, defaultValue = "72") Integer hours,
+            @RequestParam(required = false, defaultValue = "temperature") String metric) {
+        return ResponseEntity.ok(analyticsService.getHourlyTrend(spatialUnitId, hours, metric));
     }
 }

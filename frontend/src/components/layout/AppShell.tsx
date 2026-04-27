@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Map,
@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   BookOpen,
   User,
+  Settings,
   Shield,
   Bell,
   Search as SearchIcon,
@@ -20,12 +21,21 @@ import {
   MessageSquare,
   Tent,
   Globe,
+  Info,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+  ChevronDown,
+  Zap,
 } from 'lucide-react';
-import { useUnreadCount } from '../../hooks/useNotifications';
+import { useMarkAllRead, useMarkRead, useNotifications, useUnreadCount } from '../../hooks/useNotifications';
+import { useLocationContextStore } from '../../store/locationContextStore';
 import { useAuthStore } from '../../store/authStore';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import InstallPwaPrompt from '../common/InstallPwaPrompt';
 import SosButton from '../emergency/SosButton';
+import { SpatialUnitSearch } from '../common/SpatialUnitSearch';
+import { toast } from 'react-hot-toast';
 
 const navigation = [
   { name: 'Home',       href: '/dashboard',   icon: LayoutDashboard },
@@ -35,30 +45,157 @@ const navigation = [
   { name: 'Flood',      href: '/flood',        icon: Waves },
   { name: 'Emergency',  href: '/emergency',    icon: AlertTriangle },
   { name: 'Guides',     href: '/guides',       icon: BookOpen },
-  { name: 'Profile',    href: '/profile',      icon: User },
   { name: 'Relief Needs', href: '/relief',     icon: HeartHandshake },
   { name: 'AI Guidance', href: '/guidance', icon: MessageSquare },
+];
+
+const alertsNav = [
+  { name: 'My Alerts',  href: '/alerts',       icon: Zap },
+];
+
+const accountNav = [
+  { name: 'Profile',    href: '/profile',      icon: User },
+  { name: 'Settings',   href: '/settings',     icon: Settings },
 ];
 
 const mobileNav = [
   { name: 'Home',    href: '/dashboard',      icon: LayoutDashboard },
   { name: 'Map',     href: '/map',            icon: Map },
   { name: 'Report',  href: '/reports',        icon: FileText },
-  { name: 'Alerts',  href: '/notifications',  icon: Bell },
-  { name: 'Profile', href: '/profile',        icon: User },
+  { name: 'Alerts',  href: '/alerts',         icon: Zap },
+  { name: 'Menu',    href: '/profile',        icon: Menu },
 ];
 
 export default function AppShell() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { data: unreadData } = useUnreadCount();
-  const { user, isAdmin, logout } = useAuthStore();
-  const location = useLocation();
+  const [isTopSearchOpen, setIsTopSearchOpen] = useState(false);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const searchPanelRef = useRef<HTMLDivElement | null>(null);
+  const notificationsPanelRef = useRef<HTMLDivElement | null>(null);
+  const userMenuRef = useRef<HTMLDivElement | null>(null);
 
-  const isUserAdmin = true; // DEV: force show all nav
+  const { data: unreadData } = useUnreadCount();
+  const { data: notificationsData, isLoading: notificationsLoading } = useNotifications({ page: 0, size: 6 });
+  const { mutateAsync: markOneRead } = useMarkRead();
+  const { mutateAsync: markAllRead, isPending: isMarkingAllRead } = useMarkAllRead();
+  const { user, isAdmin, logout } = useAuthStore();
+  const { setSelectedLocation } = useLocationContextStore();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const unreadCount = unreadData?.unreadCount ?? 0;
+  const recentNotifications = notificationsData?.content ?? [];
+
+  const isUserAdmin = isAdmin();
   const userRoles = user?.roles || [];
-  const canSeeOperations = true; // DEV: force show all nav
-  const isCampManager = true; // DEV: force show all nav
+  const canSeeOperations = isUserAdmin || userRoles.some(r => 
+    ['responder', 'govt_official', 'volunteer', 'FIRST_RESPONDER', 'GOVT_OFFICIAL', 'VOLUNTEER', 'AGENCY_PARTNER'].includes(r)
+  );
+  const isCampManager = isUserAdmin || userRoles.some(r => ['responder', 'RESPONDER'].includes(r));
+
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (searchPanelRef.current && !searchPanelRef.current.contains(target)) {
+        setIsTopSearchOpen(false);
+      }
+      if (notificationsPanelRef.current && !notificationsPanelRef.current.contains(target)) {
+        setIsNotificationsOpen(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(target)) {
+        setIsUserMenuOpen(false);
+      }
+    };
+
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsTopSearchOpen(false);
+        setIsNotificationsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onEscape);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onEscape);
+    };
+  }, []);
+
+  const getNotificationIcon = (type?: string) => {
+    switch (type) {
+      case 'WARNING':
+        return <AlertTriangle size={14} className="text-amber-400" />;
+      case 'SUCCESS':
+        return <CheckCircle size={14} className="text-emerald-400" />;
+      case 'ERROR':
+        return <AlertCircle size={14} className="text-red-400" />;
+      default:
+        return <Info size={14} className="text-blue-400" />;
+    }
+  };
+
+  const handleTopSearchSelect = (unit: any) => {
+    setIsTopSearchOpen(false);
+    setMobileMenuOpen(false);
+    navigate('/dashboard', { state: { selectedUnit: unit } });
+  };
+
+  const handleOpenNotifications = () => {
+    setIsTopSearchOpen(false);
+    setIsNotificationsOpen(prev => !prev);
+  };
+
+  const handleNotificationClick = async (notification: any) => {
+    if (!notification?.id) return;
+    try {
+      if (!notification.isRead) {
+        await markOneRead(notification.id);
+      }
+    } catch {
+      toast.error('Failed to mark notification as read');
+    }
+    setIsNotificationsOpen(false);
+
+    // Deep-link navigation based on notification metadata
+    const { warningId, spatialUnitId, spatialUnitName, spatialUnitType, lat, lng } = notification;
+
+    if (warningId && spatialUnitId) {
+      // Weather warning notification - navigate to analytics with context
+      setSelectedLocation({
+        id: spatialUnitId,
+        name: spatialUnitName || 'Selected Location',
+        type: spatialUnitType || 'DISTRICT',
+        lat,
+        lng,
+      });
+      navigate(`/analytics?warningId=${warningId}&unitId=${spatialUnitId}`);
+    } else if (spatialUnitId) {
+      // Location-based notification - navigate to dashboard with location context
+      setSelectedLocation({
+        id: spatialUnitId,
+        name: spatialUnitName || 'Selected Location',
+        type: spatialUnitType || 'DISTRICT',
+        lat,
+        lng,
+      });
+      navigate('/dashboard');
+    } else {
+      // Generic notification - go to full notifications page
+      navigate('/notifications');
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (unreadCount === 0) return;
+    try {
+      await markAllRead();
+    } catch {
+      toast.error('Failed to mark all notifications as read');
+    }
+  };
 
   const getPageTitle = () => {
     const path = location.pathname;
@@ -121,6 +258,60 @@ export default function AppShell() {
               </span>
             </NavLink>
           ))}
+
+          {/* My Alerts Section */}
+          <div className="pt-4 mt-4 border-t border-slate-800">
+            <p className={`text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2 px-2 transition-all duration-200 whitespace-nowrap overflow-hidden ${isExpanded ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
+              Alerts
+            </p>
+            {alertsNav.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={({ isActive }) =>
+                  `flex items-center h-10 rounded-lg transition-all duration-200 group/nav ${
+                    isActive
+                      ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100 border border-transparent'
+                  }`
+                }
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <item.icon size={18} className="group-hover/nav:scale-110 transition-transform" />
+                </div>
+                <span className={`text-sm font-semibold whitespace-nowrap transition-all duration-200 overflow-hidden ${isExpanded ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
+                  {item.name}
+                </span>
+              </NavLink>
+            ))}
+          </div>
+
+          {/* Account Section - Profile & Settings */}
+          <div className="pt-4 mt-4 border-t border-slate-800">
+            <p className={`text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2 px-2 transition-all duration-200 whitespace-nowrap overflow-hidden ${isExpanded ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
+              Account
+            </p>
+            {accountNav.map((item) => (
+              <NavLink
+                key={item.name}
+                to={item.href}
+                className={({ isActive }) =>
+                  `flex items-center h-10 rounded-lg transition-all duration-200 group/nav ${
+                    isActive
+                      ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100 border border-transparent'
+                  }`
+                }
+              >
+                <div className="w-10 h-10 flex items-center justify-center shrink-0">
+                  <item.icon size={18} className="group-hover/nav:scale-110 transition-transform" />
+                </div>
+                <span className={`text-sm font-semibold whitespace-nowrap transition-all duration-200 overflow-hidden ${isExpanded ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
+                  {item.name}
+                </span>
+              </NavLink>
+            ))}
+          </div>
 
           {(isUserAdmin || canSeeOperations) && (
             <div className="pt-4 mt-4 border-t border-slate-800">
@@ -337,28 +528,166 @@ export default function AppShell() {
             <h2 className="text-base font-bold text-slate-100 tracking-tight">{getPageTitle()}</h2>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition">
-              <SearchIcon size={18} />
-            </button>
-            <NavLink
-              to="/notifications"
-              className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition relative"
-            >
-              <Bell size={18} />
-              {unreadData?.unreadCount && unreadData.unreadCount > 0 ? (
-                <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-[9px] font-black text-white flex items-center justify-center rounded-full">
-                  {unreadData.unreadCount > 9 ? '9+' : unreadData.unreadCount}
-                </span>
-              ) : null}
-            </NavLink>
+          <div className="relative flex items-center gap-2">
+            <div className="relative" ref={searchPanelRef}>
+              <button
+                onClick={() => {
+                  setIsNotificationsOpen(false);
+                  setIsTopSearchOpen(prev => !prev);
+                }}
+                title="Quick location search"
+                className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition"
+              >
+                <SearchIcon size={18} />
+              </button>
+
+              {isTopSearchOpen && (
+                <div className="absolute right-0 mt-2 w-[22rem] max-w-[85vw] rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-2xl z-50">
+                  <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-2">Quick Location Search</p>
+                  <SpatialUnitSearch
+                    onSelect={handleTopSearchSelect}
+                    placeholder="Search and jump to a location..."
+                    className="max-w-full"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="relative" ref={notificationsPanelRef}>
+              <button
+                onClick={handleOpenNotifications}
+                title="Notifications"
+                className="p-2 text-slate-400 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition relative"
+              >
+                <Bell size={18} />
+                {unreadCount > 0 ? (
+                  <span className="absolute top-1.5 right-1.5 w-4 h-4 bg-red-500 text-[9px] font-black text-white flex items-center justify-center rounded-full">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                ) : null}
+              </button>
+
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-2 w-[24rem] max-w-[90vw] rounded-xl border border-slate-700 bg-slate-900 shadow-2xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-white">Notifications</p>
+                      <p className="text-[11px] text-slate-500">{unreadCount} unread</p>
+                    </div>
+                    <button
+                      onClick={handleMarkAllRead}
+                      disabled={unreadCount === 0 || isMarkingAllRead}
+                      className="text-[10px] uppercase tracking-widest font-bold text-blue-400 disabled:text-slate-600 hover:text-blue-300 transition"
+                    >
+                      Mark all read
+                    </button>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <p className="px-4 py-6 text-center text-sm text-slate-500">Loading notifications...</p>
+                    ) : recentNotifications.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-sm text-slate-500">No notifications yet.</p>
+                    ) : (
+                      recentNotifications.map((notification: any) => (
+                        <button
+                          key={notification.id}
+                          onClick={() => handleNotificationClick(notification)}
+                          className={`w-full px-4 py-3 text-left border-b border-slate-800/80 hover:bg-slate-800/70 transition ${
+                            notification.isRead ? 'bg-transparent' : 'bg-blue-900/20'
+                          }`}
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="mt-0.5">{getNotificationIcon(notification.type)}</span>
+                            <div className="min-w-0">
+                              <p className={`text-xs font-bold truncate ${notification.isRead ? 'text-slate-300' : 'text-white'}`}>
+                                {notification.title}
+                              </p>
+                              <p className="text-[11px] text-slate-500 truncate mt-0.5">{notification.body}</p>
+                            </div>
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsNotificationsOpen(false);
+                      navigate('/notifications');
+                    }}
+                    className="w-full px-4 py-2.5 bg-slate-800/70 hover:bg-slate-800 text-[11px] font-bold uppercase tracking-widest text-blue-400 transition flex items-center justify-center gap-1"
+                  >
+                    View All <ExternalLink size={12} />
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="hidden md:block h-5 w-px bg-slate-800 mx-1" />
-            <NavLink to="/profile" className="hidden md:flex items-center gap-2 group">
-              <div className="text-right">
-                <p className="text-xs font-bold text-slate-300 group-hover:text-blue-400 transition uppercase tracking-wider">{user?.displayName}</p>
-                <p className="text-[9px] text-slate-500">Verified Account</p>
-              </div>
-            </NavLink>
+
+            {/* User Dropdown Menu */}
+            <div className="relative hidden md:block" ref={userMenuRef}>
+              <button
+                onClick={() => {
+                  setIsNotificationsOpen(false);
+                  setIsUserMenuOpen(prev => !prev);
+                }}
+                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-800 transition group"
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-emerald-500 flex items-center justify-center text-[10px] font-black text-white uppercase shrink-0">
+                  {user?.displayName?.substring(0, 2) || 'US'}
+                </div>
+                <div className="text-right hidden lg:block">
+                  <p className="text-xs font-bold text-slate-300 group-hover:text-blue-400 transition uppercase tracking-wider">{user?.displayName}</p>
+                  <p className="text-[9px] text-slate-500">{user?.roles?.[0] || 'Member'}</p>
+                </div>
+                <ChevronDown size={14} className={`text-slate-500 transition-transform ${isUserMenuOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {isUserMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-slate-700 bg-slate-900 shadow-2xl z-50 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-slate-800">
+                    <p className="text-sm font-bold text-white truncate">{user?.displayName}</p>
+                    <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                  </div>
+                  <div className="py-1">
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        navigate('/profile');
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2"
+                    >
+                      <User size={16} className="text-slate-500" />
+                      Profile
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        navigate('/settings');
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition flex items-center gap-2"
+                    >
+                      <Settings size={16} className="text-slate-500" />
+                      Settings
+                    </button>
+                  </div>
+                  <div className="border-t border-slate-800 py-1">
+                    <button
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 transition flex items-center gap-2"
+                    >
+                      <LogOut size={16} />
+                      Logout
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -395,6 +724,52 @@ export default function AppShell() {
                   <span className="font-semibold">Operations Hub</span>
                 </NavLink>
               )}
+
+              {/* My Alerts Section in Mobile Menu */}
+              <div className="pt-4 mt-4 border-t border-slate-800">
+                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2 px-2">Alerts</p>
+                <NavLink
+                  to="/alerts"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+                      isActive ? 'bg-amber-500/10 text-amber-400' : 'text-slate-300 hover:bg-slate-800'
+                    }`
+                  }
+                >
+                  <Zap size={18} />
+                  <span className="font-semibold">My Alerts</span>
+                </NavLink>
+              </div>
+
+              {/* Account Section in Mobile Menu */}
+              <div className="pt-4 mt-4 border-t border-slate-800">
+                <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-2 px-2">Account</p>
+                <NavLink
+                  to="/profile"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+                      isActive ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-300 hover:bg-slate-800'
+                    }`
+                  }
+                >
+                  <User size={18} />
+                  <span className="font-semibold">Profile</span>
+                </NavLink>
+                <NavLink
+                  to="/settings"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg transition ${
+                      isActive ? 'bg-emerald-500/10 text-emerald-400' : 'text-slate-300 hover:bg-slate-800'
+                    }`
+                  }
+                >
+                  <Settings size={18} />
+                  <span className="font-semibold">Settings</span>
+                </NavLink>
+              </div>
             </nav>
           </div>
         )}
@@ -413,7 +788,14 @@ export default function AppShell() {
               <div className={`flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition ${
                 isActive ? 'text-blue-400' : 'text-slate-500'
               }`}>
-                <item.icon size={20} className={isActive ? 'scale-110' : ''} />
+                <div className="relative">
+                  <item.icon size={20} className={isActive ? 'scale-110' : ''} />
+                  {item.href === '/notifications' && unreadCount > 0 ? (
+                    <span className="absolute -top-1 -right-2 w-4 h-4 bg-red-500 text-[9px] font-black text-white flex items-center justify-center rounded-full">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  ) : null}
+                </div>
                 <span className="text-[9px] font-bold uppercase tracking-tighter">{item.name}</span>
               </div>
             )}

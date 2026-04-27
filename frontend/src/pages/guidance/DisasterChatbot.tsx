@@ -1,25 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+﻿import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, AlertTriangle, ShieldCheck, Loader2 } from 'lucide-react';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import ReactMarkdown from 'react-markdown';
 
-// Replace with environment variable in production
-const API_KEY = "AIzaSyDzOHWSOzMumdBe45DuHuoNcsUS-a6x7_A";
-
-// Initialize Gemini
-const genAI = new GoogleGenerativeAI(API_KEY);
-
-const SYSTEM_PROMPT = `You are SIDMS Guide, an authoritative, calm, and highly intelligent AI disaster management assistant for Sri Lanka.
-Your primary goal is to provide verified, life-saving survival guidance to citizens before, during, and after disasters like floods and landslides.
-
-Guidelines:
-1. Always remain calm, professional, and reassuring.
-2. Provide step-by-step, actionable advice that is easy to understand.
-3. If a user states they are in immediate life-threatening danger, explicitly tell them to contact local emergency services (119) or use the SIDMS SOS Beacon feature.
-4. Keep your responses concise; people in emergencies do not have time to read long paragraphs.
-5. Base your knowledge on Sri Lankan disaster management protocols (Disaster Management Centre - DMC).
-6. NEVER hallucinate medical advice. Provide basic first-aid steps if asked, but always recommend seeking professional medical help.
-7. You can communicate in English, but understand if users ask questions about Sri Lanka.`;
+// Chatbot calls /ai/chat which is proxied by Vite → SIDMS ai-service (port 8000).
+// The GEMINI_API_KEY never reaches the browser — it lives in ai-service/.env.
 
 type Message = {
     id: string;
@@ -65,26 +49,26 @@ export default function DisasterChatbot() {
         setIsLoading(true);
 
         try {
-            // For Gemini 2.5 Flash
-            const model = genAI.getGenerativeModel({
-                model: "gemini-2.5-flash",
-                systemInstruction: SYSTEM_PROMPT
-            });
-
-            // Format previous messages for the model (excluding the system welcome message to avoid role validation errors)
+            // Route through the ai-service chat proxy — API key is server-side only
             const formattedHistory = messages
-                .filter(msg => msg.id !== 'welcome') // Gemini strictly wants user as first message in history
-                .map(msg => ({
-                    role: msg.role === 'model' ? 'model' : 'user',
-                    parts: [{ text: msg.content }]
-                }));
+                .filter(msg => msg.id !== 'welcome')
+                .map(msg => ({ role: msg.role, content: msg.content }));
 
-            const chat = model.startChat({
-                history: formattedHistory,
+            const res = await fetch('/ai/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    messages: formattedHistory,
+                    query: userMsg.content,
+                }),
             });
 
-            const result = await chat.sendMessage(userMsg.content);
-            const responseText = result.response.text();
+            if (!res.ok) {
+                throw new Error(`Chat proxy returned ${res.status}`);
+            }
+
+            const data = await res.json();
+            const responseText: string = data.response ?? '(empty response)';
 
             const aiMsg: Message = {
                 id: (Date.now() + 1).toString(),
@@ -99,7 +83,7 @@ export default function DisasterChatbot() {
             const errorMsg: Message = {
                 id: (Date.now() + 1).toString(),
                 role: 'model',
-                content: "⚠️ I'm currently unable to connect to the guidance network. Please check your internet connection or refer to the Offline Survival Guides section.",
+                content: "⚠️ I'm currently unable to connect to the guidance network. Please check that the AI service is running, or refer to the Offline Survival Guides section.",
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, errorMsg]);

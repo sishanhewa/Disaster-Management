@@ -4,10 +4,41 @@ import { useAuthStore } from '../store/authStore';
 /* ─── Route Guards ────────────────────────────────────────────── */
 
 export const ProtectedRoute = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const user = useAuthStore((s) => s.user);
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  
+  // Check if email is verified - only block if explicitly false (not null/undefined)
+  // This allows legacy users to continue using the app
+  if (user?.emailVerified === false) {
+    return <Navigate to="/verify-email" replace />;
+  }
+  
+  return <Outlet />;
+};
+
+export const VerifiedEmailRoute = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const user = useAuthStore((s) => s.user);
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  
+  // If already verified (true or null/undefined), redirect to dashboard
+  if (user?.emailVerified !== false) {
+    return <Navigate to="/dashboard" replace />;
+  }
+  
   return <Outlet />;
 };
 
 export const AdminRoute = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  const isAdmin = useAuthStore((s) => s.isAdmin());
+  
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+  
   return <Outlet />;
 };
 
@@ -21,6 +52,7 @@ export const PublicOnlyRoute = () => {
 
 import LoginPageComponent from '../pages/auth/LoginPage';
 import RegisterPageComponent from '../pages/auth/RegisterPage';
+import VerifyEmailPageComponent from '../pages/auth/VerifyEmailPage';
 import DashboardPageComponent from '../pages/DashboardPage';
 import MapPageComponent from '../pages/MapPage';
 import ReportsPageComponent from '../pages/reports/ReportsPage';
@@ -45,6 +77,7 @@ import AdminWarningsPageComponent from '../pages/admin/AdminWarningsPage';
 import AdminCampsPageComponent from '../pages/admin/AdminCampsPage';
 import AdminNeedsPageComponent from '../pages/admin/AdminNeedsPage';
 import OperationsPageComponent from '../pages/OperationsPage';
+import AlertsPageComponent from '../pages/AlertsPage';
 
 export const LoginPage = LoginPageComponent;
 export const RegisterPage = RegisterPageComponent;
@@ -72,3 +105,5 @@ export const AdminWarningsPage = AdminWarningsPageComponent;
 export const AdminCampsPage = AdminCampsPageComponent;
 export const AdminNeedsPage = AdminNeedsPageComponent;
 export const OperationsPage = OperationsPageComponent;
+export const AlertsPage = AlertsPageComponent;
+export const VerifyEmailPage = VerifyEmailPageComponent;

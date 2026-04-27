@@ -60,7 +60,11 @@ const ExpertDashboard = () => {
                 </div>
 
                 <div className="flex gap-4">
-                    <button className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 flex items-center gap-2 rounded-lg font-semibold transition border border-slate-600">
+                    <button
+                        type="button"
+                        onClick={() => window.print()}
+                        className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 flex items-center gap-2 rounded-lg font-semibold transition border border-slate-600"
+                    >
                         <HardDriveDownload size={18} />
                         Instant Briefing PDF
                     </button>

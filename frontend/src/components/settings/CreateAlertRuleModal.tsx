@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { X, AlertTriangle, MapPin, Sliders, Clock, Info } from 'lucide-react';
+import { X, AlertTriangle, MapPin, Sliders, Clock, Info, Bell, Mail, MessageSquare, Smartphone } from 'lucide-react';
 import { alertRulesApi } from '../../api/endpoints';
 import { extractApiErrorMessage } from '../../api/error';
 import Button from '../common/Button';
@@ -22,6 +22,8 @@ const PARAMETERS = [
   { value: 'cape_jkg', label: 'CAPE Index (J/kg)' },
   { value: 'humidity_pct', label: 'Humidity (%)' },
   { value: 'uv_index', label: 'UV Index' },
+  { value: 'pressure_hpa', label: 'Pressure (hPa)' },
+  { value: 'cloud_cover_pct', label: 'Cloud Cover (%)' },
 ];
 
 const OPERATORS = [
@@ -32,34 +34,112 @@ const OPERATORS = [
 ];
 
 const COOLDOWN_OPTIONS = [1, 3, 6, 12, 24];
+const FORECAST_WINDOW_OPTIONS = [
+  { value: 1, label: 'Current (1 hour)' },
+  { value: 3, label: 'Next 3 hours' },
+  { value: 6, label: 'Next 6 hours' },
+  { value: 12, label: 'Next 12 hours' },
+  { value: 24, label: 'Next 24 hours (1 day)' },
+  { value: 48, label: 'Next 48 hours (2 days)' },
+  { value: 72, label: 'Next 72 hours (3 days)' },
+  { value: 168, label: 'Next 7 days' },
+];
+
+const AGGREGATION_OPTIONS = [
+  { value: 'CURRENT', label: 'Current Value', desc: 'Only check the first hour (now)' },
+  { value: 'MAX', label: 'Maximum', desc: 'Alert if ANY hour exceeds threshold' },
+  { value: 'MIN', label: 'Minimum', desc: 'Alert if lowest value meets threshold' },
+  { value: 'AVG', label: 'Average', desc: 'Alert if average across window exceeds' },
+  { value: 'SUM', label: 'Total Sum', desc: 'For accumulated values like rainfall' },
+];
+
+const SEVERITY_OPTIONS = [
+  { value: 'LOW', label: 'Low' },
+  { value: 'MODERATE', label: 'Moderate' },
+  { value: 'HIGH', label: 'High' },
+  { value: 'CRITICAL', label: 'Critical' },
+  { value: 'EXTREME', label: 'Extreme' },
+];
+
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const ALLOWED_PARAMETERS = new Set(PARAMETERS.map((p) => p.value));
 const ALLOWED_OPERATORS = new Set(OPERATORS.map((o) => o.value));
+const ALLOWED_AGGREGATIONS = new Set(AGGREGATION_OPTIONS.map((a) => a.value));
 
 const CreateAlertRuleModal: React.FC<CreateAlertRuleModalProps> = ({ isOpen, onClose, onSuccess, initialData }) => {
   const [loading, setLoading] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<any>(initialData ? { id: initialData.spatialUnitId, name: initialData.spatialUnitName } : null);
+  const [selectedUnit, setSelectedUnit] = useState<any>(null);
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm({
-    defaultValues: initialData ? {
-      name: initialData.name,
-      parameter: initialData.parameter,
-      operator: initialData.operator,
-      threshold: initialData.threshold,
-      cooldownHours: initialData.cooldownHours,
-      timeWindowStart: initialData.timeWindowStart || '',
-      timeWindowEnd: initialData.timeWindowEnd || '',
-    } : {
+  // Update selectedUnit when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setSelectedUnit({ id: initialData.spatialUnitId, name: initialData.spatialUnitName });
+    } else {
+      setSelectedUnit(null);
+    }
+  }, [initialData]);
+
+  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm({
+    defaultValues: {
       name: '',
       parameter: 'temp_c',
       operator: '>',
       threshold: 35,
       cooldownHours: 6,
+      forecastWindowHours: 1,
+      aggregationType: 'CURRENT',
+      severityThreshold: 'MODERATE',
+      channels: ['IN_APP', 'EMAIL'],
       timeWindowStart: '',
       timeWindowEnd: '',
     }
   });
+
+  // Reset form when initialData changes (for edit mode)
+  useEffect(() => {
+    if (initialData) {
+      reset({
+        name: initialData.name || '',
+        parameter: initialData.parameter || 'temp_c',
+        operator: initialData.operator || '>',
+        threshold: initialData.threshold ?? 35,
+        cooldownHours: initialData.cooldownHours ?? 6,
+        forecastWindowHours: initialData.forecastWindowHours ?? 1,
+        aggregationType: initialData.aggregationType || 'CURRENT',
+        severityThreshold: initialData.severityThreshold || 'MODERATE',
+        channels: initialData.channels || ['IN_APP', 'EMAIL'],
+        timeWindowStart: initialData.timeWindowStart || '',
+        timeWindowEnd: initialData.timeWindowEnd || '',
+      });
+    } else {
+      reset({
+        name: '',
+        parameter: 'temp_c',
+        operator: '>',
+        threshold: 35,
+        cooldownHours: 6,
+        forecastWindowHours: 1,
+        aggregationType: 'CURRENT',
+        severityThreshold: 'MODERATE',
+        channels: ['IN_APP', 'EMAIL'],
+        timeWindowStart: '',
+        timeWindowEnd: '',
+      });
+    }
+  }, [initialData, reset]);
+
+  const aggregationType = watch('aggregationType');
+  const channels = watch('channels') || [];
+
+  const toggleChannel = (channel: string) => {
+    const current = channels || [];
+    if (current.includes(channel)) {
+      return current.filter((c: string) => c !== channel);
+    } else {
+      return [...current, channel];
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -111,15 +191,33 @@ const CreateAlertRuleModal: React.FC<CreateAlertRuleModalProps> = ({ isOpen, onC
       return;
     }
 
+    // Validate new fields
+    const forecastWindowHours = Number(data.forecastWindowHours);
+    if (!forecastWindowHours || forecastWindowHours < 1 || forecastWindowHours > 168) {
+      toast.error('Forecast window must be between 1 and 168 hours');
+      return;
+    }
+
+    if (!ALLOWED_AGGREGATIONS.has(String(data.aggregationType))) {
+      toast.error('Please select a valid aggregation type');
+      return;
+    }
+
+    // Fix: convert empty strings to null for time windows
+    const payload = {
+      ...data,
+      name,
+      spatialUnitId: selectedUnit.id,
+      threshold,
+      cooldownHours,
+      forecastWindowHours,
+      channels: data.channels || ['IN_APP', 'EMAIL'],
+      timeWindowStart: data.timeWindowStart || null,
+      timeWindowEnd: data.timeWindowEnd || null,
+    };
+
     try {
       setLoading(true);
-      const payload = {
-        ...data,
-        name,
-        spatialUnitId: selectedUnit.id,
-        threshold,
-        cooldownHours,
-      };
 
       if (initialData) {
         await alertRulesApi.updateAlertRule(initialData.id, payload);
@@ -228,13 +326,132 @@ const CreateAlertRuleModal: React.FC<CreateAlertRuleModalProps> = ({ isOpen, onC
             </div>
           </div>
 
+          {/* Forecast Window Section */}
+          <div className="bg-amber-500/5 p-4 rounded-xl border border-amber-500/20 space-y-4">
+            <div className="flex items-center gap-2">
+              <Info size={16} className="text-amber-500" />
+              <h4 className="text-xs font-bold text-amber-500 uppercase">Forecast Evaluation</h4>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-300">Forecast Window</label>
+                <select 
+                  {...register('forecastWindowHours')}
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-amber-500/50 outline-none"
+                >
+                  {FORECAST_WINDOW_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <p className="text-[10px] text-slate-500">How far ahead to check</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-300">Aggregation</label>
+                <select 
+                  {...register('aggregationType')}
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-amber-500/50 outline-none"
+                >
+                  {AGGREGATION_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <p className="text-[10px] text-slate-500">
+                  {AGGREGATION_OPTIONS.find(o => o.value === aggregationType)?.desc}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Severity Threshold & Channels */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-400">Minimum Severity</label>
+              <select 
+                {...register('severityThreshold')}
+                className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:ring-2 focus:ring-emerald-500/50 outline-none"
+              >
+                {SEVERITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              <p className="text-[10px] text-slate-500">Don't alert below this level</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-slate-400">Alert Channels</label>
+              <div className="space-y-2 p-3 bg-slate-900/30 rounded-lg border border-slate-700/50">
+                {/* In-App */}
+                <label
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                    channels.includes('IN_APP')
+                      ? 'bg-emerald-500/20 border border-emerald-500/40'
+                      : 'hover:bg-slate-800/50 border border-transparent'
+                  }`}
+                  onClick={() => reset({ ...watch(), channels: toggleChannel('IN_APP') })}
+                >
+                  <div className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                    channels.includes('IN_APP')
+                      ? 'bg-emerald-500 text-white'
+                      : 'border-2 border-slate-500 bg-slate-800'
+                  }`}>
+                    {channels.includes('IN_APP') && <Bell size={12} />}
+                  </div>
+                  <Bell size={16} className={channels.includes('IN_APP') ? 'text-emerald-400' : 'text-slate-500'} />
+                  <span className={`text-sm ${channels.includes('IN_APP') ? 'text-emerald-300' : 'text-slate-400'}`}>
+                    In-App
+                  </span>
+                </label>
+
+                {/* Email */}
+                <label
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                    channels.includes('EMAIL')
+                      ? 'bg-blue-500/20 border border-blue-500/40'
+                      : 'hover:bg-slate-800/50 border border-transparent'
+                  }`}
+                  onClick={() => reset({ ...watch(), channels: toggleChannel('EMAIL') })}
+                >
+                  <div className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                    channels.includes('EMAIL')
+                      ? 'bg-blue-500 text-white'
+                      : 'border-2 border-slate-500 bg-slate-800'
+                  }`}>
+                    {channels.includes('EMAIL') && <Mail size={12} />}
+                  </div>
+                  <Mail size={16} className={channels.includes('EMAIL') ? 'text-blue-400' : 'text-slate-500'} />
+                  <span className={`text-sm ${channels.includes('EMAIL') ? 'text-blue-300' : 'text-slate-400'}`}>
+                    Email
+                  </span>
+                </label>
+
+                {/* SMS */}
+                <label
+                  className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all ${
+                    channels.includes('SMS')
+                      ? 'bg-amber-500/20 border border-amber-500/40'
+                      : 'hover:bg-slate-800/50 border border-transparent'
+                  }`}
+                  onClick={() => reset({ ...watch(), channels: toggleChannel('SMS') })}
+                >
+                  <div className={`w-5 h-5 rounded flex items-center justify-center transition-all ${
+                    channels.includes('SMS')
+                      ? 'bg-amber-500 text-white'
+                      : 'border-2 border-slate-500 bg-slate-800'
+                  }`}>
+                    {channels.includes('SMS') && <Smartphone size={12} />}
+                  </div>
+                  <Smartphone size={16} className={channels.includes('SMS') ? 'text-amber-400' : 'text-slate-500'} />
+                  <span className={`text-sm ${channels.includes('SMS') ? 'text-amber-300' : 'text-slate-400'}`}>
+                    SMS
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-slate-900/30 p-4 rounded-xl border border-slate-700/50 space-y-3">
             <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-              <Info size={12} /> Optional Time Window
+              <Clock size={12} /> Optional Time Window (Daily)
             </h4>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Start Time</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Active From</label>
                 <input 
                   type="time" 
                   {...register('timeWindowStart')}
@@ -242,7 +459,7 @@ const CreateAlertRuleModal: React.FC<CreateAlertRuleModalProps> = ({ isOpen, onC
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-500 uppercase">End Time</label>
+                <label className="text-[10px] font-bold text-slate-500 uppercase">Active Until</label>
                 <input 
                   type="time" 
                   {...register('timeWindowEnd')}
@@ -250,6 +467,7 @@ const CreateAlertRuleModal: React.FC<CreateAlertRuleModalProps> = ({ isOpen, onC
                 />
               </div>
             </div>
+            <p className="text-[10px] text-slate-500">Rule only evaluates during these hours (optional)</p>
           </div>
 
           <div className="flex gap-3 pt-2">

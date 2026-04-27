@@ -152,18 +152,11 @@ public class WeatherNodeAdminService {
                 .humidityPct(cache.getHumidityPct())
                 .pressureHpa(cache.getPressureHpa())
                 .precipitationMm(cache.getPrecipitationMm())
-                .precipProbability(cache.getPrecipProbability())
                 .windSpeedKmh(cache.getWindSpeedKmh())
-                .windGustKmh(cache.getWindGustKmh())
                 .windDirectionDeg(cache.getWindDirectionDeg())
                 .cloudCoverPct(cache.getCloudCoverPct())
-                .visibilityM(cache.getVisibilityM())
                 .uvIndex(cache.getUvIndex())
-                .capeJkg(cache.getCapeJkg())
-                .weatherCode(cache.getWeatherCode())
-                .usAqi(cache.getUsAqi())
-                .pm10(cache.getPm10())
-                .pm25(cache.getPm25());
+                .symbolCode(cache.getSymbolCode());
 
         try {
             if (cache.getRawPayload() == null || cache.getRawPayload().isBlank()) {
@@ -181,7 +174,6 @@ public class WeatherNodeAdminService {
                         builder.firstEntryTime(asText(current, "time"));
                         builder.firstEntryTempC(asDouble(current, "temperature_2m"));
                         builder.firstEntryHumidityPct(asDouble(current, "relative_humidity_2m"));
-                        builder.firstEntryWeatherCode(asInt(current, "weather_code"));
                     }
                 }
             } else if (root.isObject()) {
@@ -191,7 +183,6 @@ public class WeatherNodeAdminService {
                     builder.firstEntryTime(asText(current, "time"));
                     builder.firstEntryTempC(asDouble(current, "temperature_2m"));
                     builder.firstEntryHumidityPct(asDouble(current, "relative_humidity_2m"));
-                    builder.firstEntryWeatherCode(asInt(current, "weather_code"));
                 }
             } else {
                 builder.rawPayloadType("UNKNOWN").rawPayloadEntryCount(0);

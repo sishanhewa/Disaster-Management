@@ -2,6 +2,7 @@ package com.sidms.backend.service;
 
 import com.sidms.backend.dto.emergency.*;
 import com.sidms.backend.entity.*;
+import com.sidms.backend.entity.enums.DisasterSeverity;
 import com.sidms.backend.entity.enums.SosStatus;
 import com.sidms.backend.entity.enums.TaskStatus;
 import com.sidms.backend.exception.ResourceNotFoundException;
@@ -20,20 +21,29 @@ public class EmergencyService {
 
         private final SosIncidentRepository sosIncidentRepository;
         private final SosTimelineRepository sosTimelineRepository;
+        private final SosEventRepository sosEventRepository;
         private final VolunteerTaskRepository volunteerTaskRepository;
         private final UserRepository userRepository;
         private final EmergencyResourceRepository emergencyResourceRepository;
+        private final SpatialUnitRepository spatialUnitRepository;
+        private final WeatherService weatherService;
 
         public EmergencyService(SosIncidentRepository sosIncidentRepository,
                         SosTimelineRepository sosTimelineRepository,
+                        SosEventRepository sosEventRepository,
                         VolunteerTaskRepository volunteerTaskRepository,
                         UserRepository userRepository,
-                        EmergencyResourceRepository emergencyResourceRepository) {
+                        EmergencyResourceRepository emergencyResourceRepository,
+                        SpatialUnitRepository spatialUnitRepository,
+                        WeatherService weatherService) {
                 this.sosIncidentRepository = sosIncidentRepository;
                 this.sosTimelineRepository = sosTimelineRepository;
+                this.sosEventRepository = sosEventRepository;
                 this.volunteerTaskRepository = volunteerTaskRepository;
                 this.userRepository = userRepository;
                 this.emergencyResourceRepository = emergencyResourceRepository;
+                this.spatialUnitRepository = spatialUnitRepository;
+                this.weatherService = weatherService;
         }
 
         // ── Emergency Resources ─────────────────────────────────
@@ -131,6 +141,9 @@ public class EmergencyService {
                                 .notes("SOS alert created")
                                 .createdAt(LocalDateTime.now())
                                 .build());
+
+                // Create SosEvent for event-driven notification system
+                createSosEventForIncident(incident, req);
 
                 return toSosResponse(incident);
         }
@@ -426,5 +439,115 @@ public class EmergencyService {
                                 .acceptedAt(task.getAcceptedAt())
                                 .completedAt(task.getCompletedAt())
                                 .build();
+        }
+
+        // ── SOS Event Creation ──────────────────────────────────
+
+        private void createSosEventForIncident(SosIncident incident, CreateSosRequest req) {
+                try {
+                        User user = userRepository.findById(incident.getUserId()).orElse(null);
+
+                        // Get weather context for the SOS location
+                        String weatherContext = getWeatherContextForLocation(incident.getLat(), incident.getLng());
+
+                        // Build event title and description
+                        String locationName = getLocationNameForCoordinates(incident.getLat(), incident.getLng());
+                        String title = String.format("SOS EMERGENCY: %s in %s",
+                                        incident.getStatus().name(),
+                                        locationName != null ? locationName : "Unknown Location");
+
+                        StringBuilder description = new StringBuilder();
+                        description.append(String.format("Emergency SOS triggered by %s",
+                                        user != null ? user.getDisplayName() : "Unknown User"));
+                        if (user != null && user.getPhone() != null) {
+                                description.append(String.format(" (Phone: %s)", user.getPhone()));
+                        }
+                        description.append(".\n\n");
+
+                        if (incident.getMedicalNotes() != null && !incident.getMedicalNotes().isBlank()) {
+                                description.append(String.format("Medical Notes: %s\n\n", incident.getMedicalNotes()));
+                        }
+
+                        description.append(String.format("Location: %s, %s\n",
+                                        incident.getLat(), incident.getLng()));
+
+                        if (weatherContext != null && !weatherContext.isBlank()) {
+                                description.append(String.format("Weather Context: %s\n", weatherContext));
+                        }
+
+                        description.append(String.format("Battery Level: %.0f%%\n",
+                                        incident.getBatteryLevel() != null ? incident.getBatteryLevel() : 100));
+
+                        // Create SosEvent
+                        SosEvent event = SosEvent.builder()
+                                        .incidentId(incident.getId())
+                                        .userId(incident.getUserId())
+                                        .userName(user != null ? user.getDisplayName() : "Unknown")
+                                        .userPhone(user != null ? user.getPhone() : null)
+                                        .contactPhone(incident.getContactPhone())
+                                        .status(incident.getStatus())
+                                        .title(title)
+                                        .description(description.toString())
+                                        .medicalNotes(incident.getMedicalNotes())
+                                        .latitude(incident.getLat())
+                                        .longitude(incident.getLng())
+                                        .spatialUnitId(null) // Could be resolved via spatial lookup
+                                        .spatialUnitName(locationName)
+                                        .batteryLevel(incident.getBatteryLevel())
+                                        .severity(DisasterSeverity.CRITICAL)
+                                        .weatherContext(weatherContext)
+                                        .isProcessed(false)
+                                        .createdAt(LocalDateTime.now())
+                                        .build();
+
+                        sosEventRepository.save(event);
+
+                } catch (Exception e) {
+                        // Log but don't fail the SOS creation
+                        System.err.println("Failed to create SosEvent for incident " + incident.getId() + ": " + e.getMessage());
+                }
+        }
+
+        private String getWeatherContextForLocation(Double lat, Double lng) {
+                if (lat == null || lng == null || weatherService == null) {
+                        return null;
+                }
+                try {
+                        // Get weather for nearest spatial unit
+                        var forecast = weatherService.getNearestSpatialUnit(lat, lng);
+                        if (forecast == null) {
+                                return "Weather data unavailable";
+                        }
+
+                        // Use flattened fields from AdvancedForecastResponse
+                        return String.format("Temp: %.1f°C, Wind: %.1f km/h, Rain: %.1f mm/h",
+                                        forecast.getTempC() != null ? forecast.getTempC() : 0.0,
+                                        forecast.getWindSpeedKmh() != null ? forecast.getWindSpeedKmh() : 0.0,
+                                        forecast.getPrecipitationMm() != null ? forecast.getPrecipitationMm() : 0.0);
+                } catch (Exception e) {
+                        return "Weather lookup failed: " + e.getMessage();
+                }
+        }
+
+        private String getLocationNameForCoordinates(Double lat, Double lng) {
+                if (lat == null || lng == null) {
+                        return "Unknown Location";
+                }
+                try {
+                        // Try to find the nearest spatial unit
+                        var units = spatialUnitRepository.findAll();
+                        // Simple distance-based lookup (could be improved with PostGIS)
+                        return units.stream()
+                                        .filter(u -> u.getLat() != null && u.getLng() != null)
+                                        .min(java.util.Comparator.comparingDouble(u -> {
+                                                double latDiff = u.getLat() - lat;
+                                                double lngDiff = u.getLng() - lng;
+                                                return Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+                                        }))
+                                        .map(SpatialUnit::getName)
+                                        .orElse("Unknown Location");
+                } catch (Exception e) {
+                        return "Unknown Location";
+                }
         }
 }

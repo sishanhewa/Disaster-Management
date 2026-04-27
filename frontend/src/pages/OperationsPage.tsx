@@ -13,6 +13,9 @@ import { Badge } from '../components/common/Badge';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import Input from '../components/common/Input';
+import SosLiveMap from '../components/emergency/SosLiveMap';
+import SosTrackerPanel from '../components/emergency/SosTrackerPanel';
+import { useSosWebSocket } from '../hooks/useSosWebSocket';
 import { toast } from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useAuthStore } from '../store/authStore';
@@ -49,6 +52,7 @@ const OperationsPage: React.FC = () => {
 
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [sosForTask, setSosForTask] = useState<any>(null);
+  const [selectedSosForTracking, setSelectedSosForTracking] = useState<string | null>(null);
 
   // Form States
   const [resourceForm, setResourceForm] = useState({
@@ -482,6 +486,16 @@ const OperationsPage: React.FC = () => {
                               </div>
                             </div>
                           )}
+                          {/* Live Tracking Map */}
+                          {selectedSosForTracking === sos.id && (
+                            <SosTrackerPanel
+                              incidentId={sos.id}
+                              initialLat={sos.lat}
+                              initialLng={sos.lng}
+                              onClose={() => setSelectedSosForTracking(null)}
+                            />
+                          )}
+
                           <div className="grid grid-cols-2 gap-2">
                             <div className="bg-slate-900/50 p-3 rounded-xl border border-slate-800/80 flex items-center gap-2">
                               <MapPin className="text-rose-500 shrink-0" size={16} />
@@ -497,6 +511,21 @@ const OperationsPage: React.FC = () => {
                             </div>
                           </div>
                         </div>
+
+                        {/* Live Tracking Toggle */}
+                        {sos.status !== 'RESOLVED' && (
+                          <button
+                            onClick={() => setSelectedSosForTracking(selectedSosForTracking === sos.id ? null : sos.id)}
+                            className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-bold transition-all ${
+                              selectedSosForTracking === sos.id
+                                ? 'bg-rose-500/20 border-rose-500/50 text-rose-400'
+                                : 'bg-slate-800/50 border-slate-700 text-slate-400 hover:text-slate-300'
+                            }`}
+                          >
+                            <Radio size={14} className={selectedSosForTracking === sos.id ? 'animate-pulse' : ''} />
+                            {selectedSosForTracking === sos.id ? 'Hide Live Tracking' : 'View Live Tracking'}
+                          </button>
+                        )}
 
                         {/* Action Buttons */}
                         {sos.status !== 'RESOLVED' && (

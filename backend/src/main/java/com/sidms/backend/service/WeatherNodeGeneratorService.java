@@ -28,13 +28,13 @@ public class WeatherNodeGeneratorService {
 
     // Approximate Sri Lanka coastline polygon (lat, lng pairs)
     private static final double[][] SL_POLYGON = {
-            {5.92, 80.0},  {6.0, 79.8},   {6.5, 79.7},
-            {7.0, 79.65},  {7.5, 79.7},   {8.0, 79.75},
-            {8.5, 79.8},   {9.0, 80.0},   {9.5, 80.3},
-            {9.83, 80.5},  {9.7, 81.0},   {9.5, 81.5},
-            {9.0, 81.87},  {8.5, 81.7},   {8.0, 81.5},
-            {7.5, 81.3},   {7.0, 81.0},   {6.5, 80.8},
-            {6.0, 80.5},   {5.92, 80.0}
+            { 5.92, 80.0 }, { 6.0, 79.8 }, { 6.5, 79.7 },
+            { 7.0, 79.65 }, { 7.5, 79.7 }, { 8.0, 79.75 },
+            { 8.5, 79.8 }, { 9.0, 80.0 }, { 9.5, 80.3 },
+            { 9.83, 80.5 }, { 9.7, 81.0 }, { 9.5, 81.5 },
+            { 9.0, 81.87 }, { 8.5, 81.7 }, { 8.0, 81.5 },
+            { 7.5, 81.3 }, { 7.0, 81.0 }, { 6.5, 80.8 },
+            { 6.0, 80.5 }, { 5.92, 80.0 }
     };
 
     // ──────────────────────────────────────────────
@@ -57,22 +57,32 @@ public class WeatherNodeGeneratorService {
         long startTime = System.currentTimeMillis();
 
         List<WeatherNode> nodes = new ArrayList<>();
-        int latIndex = 0;
+        int latSteps = (int) Math.ceil((LAT_MAX - LAT_MIN) / 0.045);
+        int lngSteps = (int) Math.ceil((LNG_MAX - LNG_MIN) / 0.045);
 
-        for (double lat = LAT_MIN; lat <= LAT_MAX; lat += GRID_STEP) {
-            int lngIndex = 0;
-            for (double lng = LNG_MIN; lng <= LNG_MAX; lng += GRID_STEP) {
+        for (int i = 0; i <= latSteps; i++) {
+            double lat = LAT_MIN + i * 0.045;
+            for (int j = 0; j <= lngSteps; j++) {
+                double lng = LNG_MIN + j * 0.045;
+
+                boolean isMountain = lat >= 6.5 && lat <= 7.5 && lng >= 80.5 && lng <= 81.0;
+
+                // Adaptive generation: standard zones use 0.09 step (even indices)
+                if (!isMountain && (i % 2 != 0 || j % 2 != 0)) {
+                    continue;
+                }
+
                 if (isInsideSriLanka(lat, lng)) {
                     boolean isCoastal = lng < 79.9 || lng > 81.5 || lat < 6.1 || lat > 9.7;
-                    boolean isMountain = lat >= 6.5 && lat <= 7.5 && lng >= 80.5 && lng <= 81.0;
                     WeatherNodeDensity density = isMountain ? WeatherNodeDensity.DENSE : WeatherNodeDensity.STANDARD;
 
                     WeatherNode node = WeatherNode.builder()
-                            .code("WN-" + latIndex + "-" + lngIndex)
-                            .gridKey(String.format("%.2f_%.2f", lat, lng))
-                            .lat(Math.round(lat * 100.0) / 100.0)
-                            .lng(Math.round(lng * 100.0) / 100.0)
-                            .elevationM(0)
+                            .code("WN-" + i + "-" + j)
+                            .gridKey(String.format("%.3f_%.3f", lat, lng))
+                            .lat(Math.round(lat * 1000.0) / 1000.0)
+                            .lng(Math.round(lng * 1000.0) / 1000.0)
+                            // Keep null so ElevationPrecomputeRunner can fetch real elevations.
+                            .elevationM(null)
                             .zoneDensity(density)
                             .isCoastal(isCoastal)
                             .isMountain(isMountain)
@@ -84,9 +94,7 @@ public class WeatherNodeGeneratorService {
 
                     nodes.add(node);
                 }
-                lngIndex++;
             }
-            latIndex++;
         }
 
         weatherNodeRepository.saveAll(nodes);

@@ -22,15 +22,11 @@ public class WeatherNodeTelemetrySummaryDto {
     private Double humidityPct;
     private Double pressureHpa;
     private Double precipitationMm;
-    private Double precipProbability;
     private Double windSpeedKmh;
-    private Double windGustKmh;
     private Double windDirectionDeg;
     private Double cloudCoverPct;
-    private Double visibilityM;
     private Double uvIndex;
-    private Double capeJkg;
-    private Integer weatherCode;
+    private String symbolCode;
     private Double usAqi;
     private Double pm10;
     private Double pm25;
@@ -40,5 +36,4 @@ public class WeatherNodeTelemetrySummaryDto {
     private String firstEntryTime;
     private Double firstEntryTempC;
     private Double firstEntryHumidityPct;
-    private Integer firstEntryWeatherCode;
 }

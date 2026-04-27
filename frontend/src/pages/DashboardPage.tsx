@@ -13,13 +13,24 @@ import {
 import { useWeather, useNearestWeather, useActiveWarnings } from '../hooks/useWeather';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { useReports } from '../hooks/useReports';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
 import DynamicLiveMiniMap from '../components/map/DynamicLiveMiniMap';
 import { StatCard } from '../components/common/StatCard';
 import { useAuthStore } from '../store/authStore';
+import { useLocationContextStore } from '../store/locationContextStore';
 import { usersApi } from '../api/endpoints';
 import { zoomFromType } from '../components/map/LiveMiniMap';
+
+interface SavedLocationItem {
+  id: string;
+  spatialUnitId: string;
+  nickname?: string;
+  spatialUnitName?: string;
+  spatialUnitType?: string;
+  lat?: number;
+  lng?: number;
+}
 
 const quickLinks = [
   { name: 'Interactive Map', href: '/map',         icon: MapIcon,    color: 'text-blue-400 bg-blue-500/10 border-blue-500/20' },
@@ -32,12 +43,29 @@ const quickLinks = [
 
 export default function DashboardPage() {
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [selectedUnit, setSelectedUnit] = useState<{ id: string; name: string; type: string; lat?: number; lng?: number } | null>(null);
+  const [selectedUnit, setSelectedUnitState] = useState<{ id: string; name: string; type: string; lat?: number; lng?: number } | null>(null);
+  const [savedLocations, setSavedLocations] = useState<SavedLocationItem[]>([]);
+  const [fetchingSavedLocations, setFetchingSavedLocations] = useState(false);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const location = useLocation();
 
   const { user, isAuthenticated } = useAuthStore();
+  const { selectedLocation, setSelectedLocation } = useLocationContextStore();
   const isAuth = isAuthenticated();
+
+  // Sync with location context store on mount (for deep-link navigation)
+  useEffect(() => {
+    if (selectedLocation && !selectedUnit) {
+      setSelectedUnitState({
+        id: selectedLocation.id,
+        name: selectedLocation.name,
+        type: selectedLocation.type,
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng,
+      });
+    }
+  }, [selectedLocation]);
 
   const selectedUnitId = selectedUnit?.id ?? undefined;
 
@@ -66,6 +94,40 @@ export default function DashboardPage() {
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const quickSelectedUnit = (location.state as any)?.selectedUnit;
+    if (quickSelectedUnit?.id) {
+      setSelectedUnitState({
+        id: quickSelectedUnit.id,
+        name: quickSelectedUnit.name,
+        type: quickSelectedUnit.type,
+        lat: quickSelectedUnit.lat,
+        lng: quickSelectedUnit.lng,
+      });
+      setSaveState('idle');
+    }
+  }, [location.state]);
+
+  useEffect(() => {
+    const fetchSavedLocations = async () => {
+      if (!isAuth) {
+        setSavedLocations([]);
+        return;
+      }
+      try {
+        setFetchingSavedLocations(true);
+        const data = await usersApi.getSavedLocations();
+        setSavedLocations(Array.isArray(data) ? data : []);
+      } catch {
+        setSavedLocations([]);
+      } finally {
+        setFetchingSavedLocations(false);
+      }
+    };
+
+    fetchSavedLocations();
+  }, [isAuth]);
+
   const weatherToDisplay = selectedWeather ?? nearestWeather;
   const currentTempForHourly = weatherToDisplay?.tempC ?? null;
 
@@ -78,23 +140,63 @@ export default function DashboardPage() {
   const forecastLat = selectedUnit?.lat ?? coords?.lat ?? null;
   const forecastLng = selectedUnit?.lng ?? coords?.lng ?? null;
 
-  const handleSelect = useCallback((unit: any) => {
-    setSelectedUnit({ id: unit.id, name: unit.name, type: unit.type, lat: unit.lat, lng: unit.lng });
+  const setSelectedUnit = useCallback((unit: any) => {
+    setSelectedUnitState(unit);
+    // Sync to global location context for cross-page consistency
+    if (unit) {
+      setSelectedLocation({
+        id: unit.id,
+        name: unit.name,
+        type: unit.type,
+        lat: unit.lat,
+        lng: unit.lng,
+      });
+    }
     setSaveState('idle');
-  }, []);
+  }, [setSelectedLocation]);
+
+  const handleSelect = useCallback((unit: any) => {
+    setSelectedUnit(unit);
+  }, [setSelectedUnit]);
 
   const handleSaveLocation = async () => {
     if (!selectedUnit || !isAuth) return;
     setSaveState('saving');
     try {
       // SavedLocationRequest DTO field: spatialUnitId
-      await usersApi.addSavedLocation({ spatialUnitId: selectedUnit.id });
+      await usersApi.addSavedLocation({ spatialUnitId: selectedUnit.id, nickname: selectedUnit.name });
       setSaveState('saved');
+      const data = await usersApi.getSavedLocations();
+      setSavedLocations(Array.isArray(data) ? data : []);
       setTimeout(() => setSaveState('idle'), 3000);
     } catch {
       setSaveState('error');
       setTimeout(() => setSaveState('idle'), 3000);
     }
+  };
+
+  const applySavedLocation = (locationItem: SavedLocationItem) => {
+    const fallbackName =
+      locationItem.nickname?.trim() ||
+      locationItem.spatialUnitName?.trim() ||
+      'Saved Location';
+    const unit = {
+      id: locationItem.spatialUnitId,
+      name: fallbackName,
+      type: locationItem.spatialUnitType || 'GN_DIVISION',
+      lat: locationItem.lat,
+      lng: locationItem.lng,
+    };
+    setSelectedUnitState(unit);
+    // Sync to global location context
+    setSelectedLocation({
+      id: unit.id,
+      name: unit.name,
+      type: unit.type,
+      lat: unit.lat,
+      lng: unit.lng,
+    });
+    setSaveState('idle');
   };
 
   return (
@@ -314,6 +416,35 @@ export default function DashboardPage() {
             </h2>
             <FloodStatusWidget />
           </section>
+
+          {/* Saved Locations */}
+          {isAuth && (
+            <section>
+              <h2 className="text-sm font-bold flex items-center gap-2 mb-3 text-emerald-400 uppercase tracking-widest">
+                <Bookmark size={14} /> Saved Locations
+              </h2>
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-3 space-y-2">
+                {fetchingSavedLocations ? (
+                  <p className="text-xs text-slate-500">Loading saved locations...</p>
+                ) : savedLocations.length === 0 ? (
+                  <p className="text-xs text-slate-500 italic">Save a location from the search bar to pin it here.</p>
+                ) : (
+                  savedLocations.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => applySavedLocation(item)}
+                      className="w-full text-left px-3 py-2 rounded-xl bg-slate-900/70 border border-slate-700 hover:border-emerald-500/40 hover:text-white text-slate-300 transition"
+                    >
+                      <span className="text-sm font-semibold">{item.nickname || item.spatialUnitName || 'Saved Location'}</span>
+                      {item.spatialUnitType ? (
+                        <span className="ml-2 text-[10px] uppercase text-slate-500">{item.spatialUnitType.replace('_', ' ')}</span>
+                      ) : null}
+                    </button>
+                  ))
+                )}
+              </div>
+            </section>
+          )}
 
           {/* Quick Actions */}
           <section>

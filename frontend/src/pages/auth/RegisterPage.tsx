@@ -52,7 +52,17 @@ export default function RegisterPage() {
       const { acceptTerms: _, confirmPassword: __, ...registerData } = data;
       const response = await authApi.register(registerData as any);
       setAuth(response.user, response.accessToken);
-      toast.success('Welcome to SIDMS!');
+      
+      // Show verification message if email was sent
+      if (response.emailVerificationSent) {
+        toast.success(response.message || 'Registration successful! Please check your email to verify your account.', {
+          duration: 6000,
+          icon: '📧',
+        });
+      } else {
+        toast.success('Welcome to SIDMS! Please verify your email in settings.');
+      }
+      
       navigate('/dashboard');
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Registration failed. Please try again.');

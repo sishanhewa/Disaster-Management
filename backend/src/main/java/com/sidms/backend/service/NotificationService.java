@@ -53,16 +53,12 @@ public class NotificationService {
 
     @Transactional
     public void markAllAsRead(UUID userId) {
-        notificationRepository.findByUserIdAndIsReadFalse(userId)
-                .forEach(n -> {
-                    n.setIsRead(true);
-                    notificationRepository.save(n);
-                });
+        notificationRepository.markAllAsReadByUserId(userId);
     }
 
     @Transactional
     public Notification createNotification(UUID userId, String type, String title, String body,
-                                           UUID spatialUnitId, UUID warningId) {
+            UUID spatialUnitId, UUID warningId) {
         Notification notification = Notification.builder()
                 .userId(userId)
                 .type(type)
@@ -80,7 +76,7 @@ public class NotificationService {
     @Transactional
     public void broadcastAlert(com.sidms.backend.dto.admin.BroadcastRequest request) {
         java.util.List<UUID> targetIds = request.getTargetUserIds();
-        
+
         if (targetIds == null || targetIds.isEmpty()) {
             // Broadcast to all active users
             targetIds = userRepository.findAll().stream()
@@ -111,6 +107,8 @@ public class NotificationService {
                 .type(notification.getType())
                 .title(notification.getTitle())
                 .body(notification.getBody())
+                .spatialUnitId(notification.getSpatialUnitId())
+                .warningId(notification.getWarningId())
                 .isRead(notification.getIsRead())
                 .createdAt(notification.getCreatedAt())
                 .build();

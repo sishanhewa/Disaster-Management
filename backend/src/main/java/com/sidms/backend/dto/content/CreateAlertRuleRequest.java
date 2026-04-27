@@ -11,6 +11,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -37,12 +38,26 @@ public class CreateAlertRuleRequest {
     private Double threshold;
 
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "timeWindowStart must be HH:mm")
+    @jakarta.annotation.Nullable
     private String timeWindowStart;
 
     @Pattern(regexp = "^([01]\\d|2[0-3]):[0-5]\\d$", message = "timeWindowEnd must be HH:mm")
+    @jakarta.annotation.Nullable
     private String timeWindowEnd;
 
     @Min(value = 1, message = "Cooldown hours must be at least 1")
     @Max(value = 168, message = "Cooldown hours must be at most 168")
     private Integer cooldownHours;
+
+    @Min(value = 1, message = "Forecast window must be at least 1 hour")
+    @Max(value = 168, message = "Forecast window can be at most 168 hours (7 days)")
+    private Integer forecastWindowHours;
+
+    @Pattern(regexp = "^(CURRENT|MAX|MIN|AVG|SUM)$", message = "Invalid aggregation type")
+    private String aggregationType;
+
+    private List<String> channels; // EMAIL, SMS, IN_APP, PUSH
+
+    @Pattern(regexp = "^(LOW|MODERATE|HIGH|CRITICAL|EXTREME)$", message = "Invalid severity threshold")
+    private String severityThreshold;
 }

@@ -19,7 +19,7 @@ public class WeatherNodeDto {
     private UUID id;
 
     @NotBlank(message = "Code is required")
-    @Size(max = 64, message = "Code must be at most 64 characters")
+    @Size(max = 50, message = "Code must not exceed 50 characters")
     private String code;
 
     @NotBlank(message = "Grid key is required")

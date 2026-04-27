@@ -22,21 +22,24 @@ public class UserProfileService {
     private final UserPreferencesRepository userPreferencesRepository;
     private final PasswordHistoryRepository passwordHistoryRepository;
     private final SavedLocationRepository savedLocationRepository;
+    private final SpatialUnitRepository spatialUnitRepository;
     private final UserSessionRepository userSessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditLogRepository auditLogRepository;
 
     public UserProfileService(UserRepository userRepository,
-                              UserPreferencesRepository userPreferencesRepository,
-                              PasswordHistoryRepository passwordHistoryRepository,
-                              SavedLocationRepository savedLocationRepository,
-                              UserSessionRepository userSessionRepository,
-                              PasswordEncoder passwordEncoder,
-                              AuditLogRepository auditLogRepository) {
+            UserPreferencesRepository userPreferencesRepository,
+            PasswordHistoryRepository passwordHistoryRepository,
+            SavedLocationRepository savedLocationRepository,
+            SpatialUnitRepository spatialUnitRepository,
+            UserSessionRepository userSessionRepository,
+            PasswordEncoder passwordEncoder,
+            AuditLogRepository auditLogRepository) {
         this.userRepository = userRepository;
         this.userPreferencesRepository = userPreferencesRepository;
         this.passwordHistoryRepository = passwordHistoryRepository;
         this.savedLocationRepository = savedLocationRepository;
+        this.spatialUnitRepository = spatialUnitRepository;
         this.userSessionRepository = userSessionRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditLogRepository = auditLogRepository;
@@ -74,17 +77,28 @@ public class UserProfileService {
                         .createdAt(LocalDateTime.now())
                         .build());
 
-        if (req.getUnitTemp() != null) prefs.setUnitTemp(req.getUnitTemp());
-        if (req.getUnitWind() != null) prefs.setUnitWind(req.getUnitWind());
-        if (req.getUnitPrecip() != null) prefs.setUnitPrecip(req.getUnitPrecip());
-        if (req.getLanguage() != null) prefs.setLanguage(req.getLanguage());
-        if (req.getUserType() != null) prefs.setUserType(req.getUserType());
-        if (req.getTheme() != null) prefs.setTheme(req.getTheme());
-        if (req.getDndStart() != null) prefs.setDndStart(req.getDndStart());
-        if (req.getDndEnd() != null) prefs.setDndEnd(req.getDndEnd());
-        if (req.getNotifEmail() != null) prefs.setNotifEmail(req.getNotifEmail());
-        if (req.getNotifPush() != null) prefs.setNotifPush(req.getNotifPush());
-        if (req.getNotifInapp() != null) prefs.setNotifInapp(req.getNotifInapp());
+        if (req.getUnitTemp() != null)
+            prefs.setUnitTemp(req.getUnitTemp());
+        if (req.getUnitWind() != null)
+            prefs.setUnitWind(req.getUnitWind());
+        if (req.getUnitPrecip() != null)
+            prefs.setUnitPrecip(req.getUnitPrecip());
+        if (req.getLanguage() != null)
+            prefs.setLanguage(req.getLanguage());
+        if (req.getUserType() != null)
+            prefs.setUserType(req.getUserType());
+        if (req.getTheme() != null)
+            prefs.setTheme(req.getTheme());
+        if (req.getDndStart() != null)
+            prefs.setDndStart(req.getDndStart());
+        if (req.getDndEnd() != null)
+            prefs.setDndEnd(req.getDndEnd());
+        if (req.getNotifEmail() != null)
+            prefs.setNotifEmail(req.getNotifEmail());
+        if (req.getNotifPush() != null)
+            prefs.setNotifPush(req.getNotifPush());
+        if (req.getNotifInapp() != null)
+            prefs.setNotifInapp(req.getNotifInapp());
 
         prefs.setUpdatedAt(LocalDateTime.now());
         userPreferencesRepository.save(prefs);
@@ -133,22 +147,31 @@ public class UserProfileService {
                 });
     }
 
-    public List<SavedLocation> getSavedLocations(UUID userId) {
-        return savedLocationRepository.findAll().stream()
-                .filter(sl -> userId.equals(sl.getUserId()))
-                .sorted((a, b) -> {
-                    Integer sa = a.getSortOrder() != null ? a.getSortOrder() : Integer.MAX_VALUE;
-                    Integer sb = b.getSortOrder() != null ? b.getSortOrder() : Integer.MAX_VALUE;
-                    return sa.compareTo(sb);
+    public List<SavedLocationDto> getSavedLocations(UUID userId) {
+        return savedLocationRepository.findByUserIdOrderBySortOrderAscCreatedAtAsc(userId).stream()
+                .map(savedLocation -> {
+                    SpatialUnit spatialUnit = spatialUnitRepository.findById(savedLocation.getSpatialUnitId())
+                            .orElse(null);
+                    return SavedLocationDto.builder()
+                            .id(savedLocation.getId())
+                            .spatialUnitId(savedLocation.getSpatialUnitId())
+                            .nickname(savedLocation.getNickname())
+                            .sortOrder(savedLocation.getSortOrder())
+                            .createdAt(savedLocation.getCreatedAt())
+                            .spatialUnitName(spatialUnit != null ? spatialUnit.getName() : null)
+                            .spatialUnitType(
+                                    spatialUnit != null && spatialUnit.getType() != null ? spatialUnit.getType().name()
+                                            : null)
+                            .lat(spatialUnit != null ? spatialUnit.getLat() : null)
+                            .lng(spatialUnit != null ? spatialUnit.getLng() : null)
+                            .build();
                 })
                 .collect(Collectors.toList());
     }
 
     @Transactional
     public SavedLocation addSavedLocation(UUID userId, SavedLocationRequest req) {
-        long count = savedLocationRepository.findAll().stream()
-                .filter(sl -> userId.equals(sl.getUserId()))
-                .count();
+        long count = savedLocationRepository.countByUserId(userId);
         if (count >= 10) {
             throw new ValidationException("Maximum of 10 saved locations allowed");
         }
@@ -179,7 +202,7 @@ public class UserProfileService {
     @Transactional
     public void deleteMyAccount(UUID userId) {
         User user = findUserOrThrow(userId);
-        
+
         user.setDeletedAt(LocalDateTime.now());
         user.setIsActive(false);
         userRepository.save(user);

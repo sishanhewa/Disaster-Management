@@ -72,7 +72,7 @@ const SosButton: React.FC = () => {
       const data = {
         lat: position.coords.latitude,
         lng: position.coords.longitude,
-        batteryLevel: (navigator as any).getBattery ? await (navigator as any).getBattery().then((b: any) => b.level * 100) : 100,
+        batteryLevel: null, // Web battery API not reliable, skip for now
         medicalNotes: medicalNotes.trim(),
         contactPhone: contactPhone.trim() || null
       };
@@ -129,7 +129,7 @@ const SosButton: React.FC = () => {
               </div>
               <h3 className="text-2xl font-black text-white tracking-tight uppercase">Emergency SOS</h3>
               <p className="text-slate-400 mt-2 text-sm font-medium">
-                Responders within <span className="text-red-400 font-bold">5km</span> will be alerted with your real-time location.
+                Your location will be shared with emergency responders. Keep this page open to allow live tracking.
               </p>
             </div>
 

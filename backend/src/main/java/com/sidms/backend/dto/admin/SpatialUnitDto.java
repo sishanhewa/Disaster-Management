@@ -20,13 +20,13 @@ public class SpatialUnitDto {
     private UUID id;
 
     @NotBlank(message = "Name is required")
-    @Size(max = 200, message = "Name must be at most 200 characters")
+    @Size(max = 255, message = "Name must not exceed 255 characters")
     private String name;
 
-    @Size(max = 200, message = "Sinhala name must be at most 200 characters")
+    @Size(max = 255, message = "Sinhala name must not exceed 255 characters")
     private String nameSinhala;
 
-    @Size(max = 200, message = "Tamil name must be at most 200 characters")
+    @Size(max = 255, message = "Tamil name must not exceed 255 characters")
     private String nameTamil;
 
     @NotBlank(message = "Pcode is required")

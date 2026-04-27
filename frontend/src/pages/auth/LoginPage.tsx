@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import * as yup from 'yup';
 import toast from 'react-hot-toast';
-import { Waves, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Activity } from 'lucide-react';
+import { Waves, Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Activity, AlertCircle, Settings } from 'lucide-react';
 import { authApi } from '../../api/endpoints';
 import { useAuthStore } from '../../store/authStore';
 
@@ -18,6 +18,7 @@ type FormData = yup.InferType<typeof schema>;
 export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState(false);
   const navigate = useNavigate();
   const setAuth = useAuthStore((state) => state.setAuth);
 
@@ -27,6 +28,7 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setIsLoading(true);
+    setVerificationError(false);
     try {
       const response = await authApi.login(data);
       setAuth(response.user, response.accessToken);
@@ -34,7 +36,14 @@ export default function LoginPage() {
       navigate('/dashboard');
     } catch (error: any) {
       const message = error.response?.data?.message || 'Invalid email or password';
-      toast.error(message);
+      
+      // Check if error is about email verification
+      if (message.toLowerCase().includes('email not verified')) {
+        setVerificationError(true);
+        toast.error(message, { duration: 6000, icon: '📧' });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -108,6 +117,24 @@ export default function LoginPage() {
             </div>
             {errors.password && <p className="text-xs text-red-400 mt-1">{errors.password.message}</p>}
           </div>
+
+          {/* Email Verification Error Message */}
+          {verificationError && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
+              <div className="flex items-start gap-3">
+                <AlertCircle size={18} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-amber-500">Email Not Verified</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Please check your email for a verification code. A new code has been sent.
+                  </p>
+                  <p className="text-xs text-slate-500 mt-2">
+                    After verifying, you can log in normally.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           <button
             type="submit"

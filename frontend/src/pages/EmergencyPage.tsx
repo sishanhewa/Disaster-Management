@@ -9,15 +9,19 @@ import {
   Info,
   Phone,
   LifeBuoy,
-  X
+  X,
+  Radio
 } from 'lucide-react';
 import { emergencyApi } from '../api/endpoints';
 import { Badge } from '../components/common/Badge';
+import { useVictimLocationStream } from '../hooks/useVictimLocationStream';
+import { useAuthStore } from '../store/authStore';
 import { formatDistanceToNow } from 'date-fns';
 import { toast } from 'react-hot-toast';
 
 export default function EmergencyPage() {
   const queryClient = useQueryClient();
+  const { accessToken } = useAuthStore();
 
   // Queries - Only fetch user's SOS incidents
   const { data: mySos, isLoading: loadingSos } = useQuery({
@@ -25,6 +29,14 @@ export default function EmergencyPage() {
     queryFn: emergencyApi.getMySosIncidents,
     refetchInterval: 10000, // Poll every 10 seconds for live updates
   });
+
+  // Stream location for the first active incident
+  const activeIncident = mySos?.find((i: any) => i.status !== 'RESOLVED');
+  const { isStreaming } = useVictimLocationStream(
+    activeIncident?.id || null,
+    accessToken,
+    !!activeIncident && activeIncident.status !== 'RESOLVED'
+  );
 
   const handleCloseSos = async (id: string) => {
     if (!confirm('Are you sure you want to close this SOS incident? Only do this if you are safe or assistance is no longer needed.')) return;
@@ -125,8 +137,16 @@ export default function EmergencyPage() {
                           <div className="flex bg-slate-800/30 p-4 rounded-2xl border border-slate-800/80 items-center gap-4">
                              <MapPin className="text-sky-500" size={20} />
                              <div>
-                               <p className="text-[10px] text-slate-500 font-black uppercase">Live Coordinates</p>
-                               <p className="text-sm text-white font-bold font-mono">{incident.lat.toFixed(6)}, {incident.lng.toFixed(6)}</p>
+                               <p className="text-[10px] text-slate-500 font-black uppercase flex items-center gap-2">
+                                 Live Coordinates
+                                 {isStreaming && incident.id === activeIncident?.id && (
+                                   <span className="flex items-center gap-1 text-emerald-400">
+                                     <Radio size={10} className="animate-pulse" />
+                                     Streaming
+                                   </span>
+                                 )}
+                               </p>
+                               <p className="text-sm text-white font-bold font-mono">{incident.lat?.toFixed(6)}, {incident.lng?.toFixed(6)}</p>
                              </div>
                           </div>
                           <div className="flex bg-slate-800/30 p-4 rounded-2xl border border-slate-800/80 items-center gap-4">

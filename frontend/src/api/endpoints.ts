@@ -1,4 +1,4 @@
-﻿import apiClient from './client';
+import apiClient from './client';
 
 /* --- Auth --- */
 export const authApi = {
@@ -14,7 +14,7 @@ export const weatherApi = {
   searchLocations: (q: string) => apiClient.get('/api/v1/weather/search', { params: { q } }).then(res => res.data),
   getNearestWeather: (lat: number, lng: number) => apiClient.get('/api/v1/weather/exact', { params: { lat, lng } }).then(res => res.data),
   getActiveWarningsForUnit: (spatialUnitId: string) => apiClient.get(`/api/v1/weather/active-warnings/${spatialUnitId}`).then(res => res.data),
-  getForecast: (lat: number, lng: number) => apiClient.get('/api/v1/weather/forecast', { params: { lat, lng } }).then(res => res.data),
+  getForecast: (lat: number, lng: number) => apiClient.get('/api/v1/weather/exact', { params: { lat, lng } }).then(res => res.data),
   getTrackedWeather: () => apiClient.get('/api/v1/weather/tracked').then(res => res.data),
 };
 
@@ -77,6 +77,15 @@ export const analyticsApi = {
     apiClient.get(`/api/v1/analytics/forecast-accuracy/${spatialUnitId}`, { params }).then(res => res.data),
   getForecastHistory: (spatialUnitId: string, metric: string, params?: { days?: number }) =>
     apiClient.get(`/api/v1/analytics/forecast-history/${spatialUnitId}/${metric}`, { params }).then(res => res.data),
+  // NEW: Satellite rainfall comparison (JAXA vs Station vs Model)
+  getSatelliteRainfall: (spatialUnitId: string, params?: { days?: number }) =>
+    apiClient.get(`/api/v1/analytics/satellite-rain/${spatialUnitId}`, { params }).then(res => res.data),
+  // NEW: Station comparison (Ground truth vs interpolated)
+  getStationComparison: (spatialUnitId: string) =>
+    apiClient.get(`/api/v1/analytics/station-comparison/${spatialUnitId}`).then(res => res.data),
+  // NEW: Hourly trend for detailed charts
+  getHourlyTrend: (spatialUnitId: string, params?: { hours?: number; metric?: string }) =>
+    apiClient.get(`/api/v1/analytics/hourly-trend/${spatialUnitId}`, { params }).then(res => res.data),
 };
 
 /* --- Emergency --- */
@@ -334,4 +343,14 @@ export const aiApi = {
       if (!res.ok) throw new Error(`AI chat proxy error: ${res.status}`);
       return res.json();
     }),
+};
+
+/* --- Verification & Volunteer (OTP verification for email/phone/volunteer) --- */
+export const verificationApi = {
+  getStatus: () => apiClient.get('/api/verification/status').then(res => res.data),
+  requestEmailVerification: () => apiClient.post('/api/verification/email/request', {}).then(res => res.data),
+  verifyEmail: (otp: string) => apiClient.post('/api/verification/email/verify', { otp }).then(res => res.data),
+  requestVolunteerVerification: (phone: string) => apiClient.post('/api/verification/volunteer/request', { phone }).then(res => res.data),
+  verifyVolunteer: (otp: string) => apiClient.post('/api/verification/volunteer/verify', { otp }).then(res => res.data),
+  toggleVolunteerStatus: () => apiClient.post('/api/verification/volunteer/toggle').then(res => res.data),
 };
