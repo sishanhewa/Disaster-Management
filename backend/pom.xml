@@ -91,7 +91,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.30</version>
+            <version>1.18.34</version>
             <scope>provided</scope>
         </dependency>
 
@@ -189,7 +189,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
-                            <version>1.18.30</version>
+                            <version>1.18.34</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
@@ -206,33 +206,33 @@
                     </excludes>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.flywaydb</groupId>
-                <artifactId>flyway-maven-plugin</artifactId>
-                <version>10.10.0</version>
-                <configuration>
-                    <url>jdbc:postgresql://localhost:5432/sidms</url>
-                    <user>sidms_user</user>
-                    <password>sidms_pass</password>
-                    <locations>
-                        <location>filesystem:src/main/resources/db/migration</location>
-                    </locations>
-                </configuration>
-            </plugin>
 <!--            <plugin>-->
 <!--                <groupId>org.flywaydb</groupId>-->
 <!--                <artifactId>flyway-maven-plugin</artifactId>-->
 <!--                <version>10.10.0</version>-->
 <!--                <configuration>-->
-<!--                    <url>jdbc:postgresql://104.208.67.128:5432/river_levels_copy</url>-->
-<!--                    <user>river_user</user>-->
-<!--                    <password>ITP_SE_03</password>-->
-<!--                    <cleanDisabled>false</cleanDisabled>-->
+<!--                    <url>jdbc:postgresql://localhost:5432/sidms</url>-->
+<!--                    <user>sidms_user</user>-->
+<!--                    <password>sidms_pass</password>-->
 <!--                    <locations>-->
 <!--                        <location>filesystem:src/main/resources/db/migration</location>-->
 <!--                    </locations>-->
 <!--                </configuration>-->
 <!--            </plugin>-->
+            <plugin>
+                <groupId>org.flywaydb</groupId>
+                <artifactId>flyway-maven-plugin</artifactId>
+                <version>10.10.0</version>
+                <configuration>
+                    <url>jdbc:postgresql://104.208.67.128:5432/river_levels_empty</url>
+                    <user>river_user</user>
+                    <password>ITP_SE_03</password>
+<!--                    <cleanDisabled>false</cleanDisabled>-->
+                    <locations>
+                        <location>filesystem:src/main/resources/db/migration</location>
+                    </locations>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 </project>

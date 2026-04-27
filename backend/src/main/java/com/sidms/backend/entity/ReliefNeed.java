@@ -25,7 +25,7 @@ public class ReliefNeed {
     @Column(columnDefinition = "uuid DEFAULT uuid_generate_v4()")
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "camp_id", nullable = false)
     private Camp camp;
 

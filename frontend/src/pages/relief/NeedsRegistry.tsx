@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { needsApi, pledgesApi } from '../../api/endpoints';
-import type { ReliefNeed } from '../../types/relief';
+import type { ReliefNeed, Camp } from '../../types/relief';
 import { Search, HeartHandshake, MapPin, AlertCircle, Package, ArrowRight, X } from 'lucide-react';
+import CampDetailsModal from '../../components/relief/CampDetailsModal';
 
 // Ported from Disaster-Management-master NeedsRegistry.tsx
 // API: api.needs.getAll() → needsApi.getAll() | api.pledges.create() → pledgesApi.create()
@@ -21,6 +22,7 @@ const NeedsRegistry: React.FC = () => {
     const [donorName, setDonorName] = useState<string>('');
     const [donorEmail, setDonorEmail] = useState<string>('');
     const [donorPhone, setDonorPhone] = useState<string>('');
+    const [viewingCamp, setViewingCamp] = useState<Camp | null>(null);
 
     const fetchNeeds = async () => {
         try {
@@ -156,11 +158,11 @@ const NeedsRegistry: React.FC = () => {
                                 </div>
                                 <div className="p-5 flex-grow flex flex-col">
                                     <h3 className="text-xl font-extrabold text-slate-100 mb-2 truncate" title={need.itemName}>{need.itemName}</h3>
-                                    <div className="flex items-start gap-2 text-sm text-slate-400 mb-5 bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                                    <div className="flex items-start gap-2 text-sm text-slate-400 mb-5 bg-slate-900/50 p-3 rounded-xl border border-slate-700/50 cursor-pointer hover:bg-slate-800/50 transition" onClick={() => need.camp && setViewingCamp(need.camp)}>
                                         <MapPin size={16} className="mt-0.5 text-blue-400 shrink-0" />
                                         <div className="overflow-hidden">
-                                            <p className="font-bold text-slate-300 truncate" title={need.camp?.campName}>{need.camp?.campName}</p>
-                                            <p className="text-xs mt-0.5">{need.camp?.district}</p>
+                                            <p className="font-bold text-slate-300 truncate" title={need.camp?.campName}>{need.camp?.campName || 'Unknown Camp'}</p>
+                                            <p className="text-xs mt-0.5">{need.camp?.district || '—'}</p>
                                         </div>
                                     </div>
                                     <div className="mt-auto">
@@ -212,8 +214,8 @@ const NeedsRegistry: React.FC = () => {
                                 <AlertCircle className="text-blue-400 shrink-0 mt-0.5" size={20} />
                                 <div className="text-sm text-slate-300">
                                     <p>You are committing to donate physical goods to:</p>
-                                    <p className="font-bold text-white mt-0.5">{pledgingNeed.camp.campName}</p>
-                                    <p className="text-xs text-slate-400">Currently needs {pledgingNeed.quantityRequired - pledgingNeed.quantityPledged} more units.</p>
+                                    <p className="font-bold text-white mt-0.5">{pledgingNeed.camp?.campName || 'Unknown Camp'}</p>
+                                    <p className="text-xs text-slate-400">Currently needs {pledgingNeed.quantityRequired - (pledgingNeed.quantityPledged || 0)} more units.</p>
                                 </div>
                             </div>
                             <div className="space-y-4">
@@ -247,6 +249,13 @@ const NeedsRegistry: React.FC = () => {
                         </form>
                     </div>
                 </div>
+            )}
+            {/* Camp Details Modal */}
+            {viewingCamp && (
+                <CampDetailsModal
+                    camp={viewingCamp}
+                    onClose={() => setViewingCamp(null)}
+                />
             )}
         </div>
     );

@@ -109,13 +109,50 @@ INSERT INTO user_preferences (user_id) VALUES
   ('00000000-0000-0000-0001-000000000003')
 ON CONFLICT (user_id) DO NOTHING;
 
--- Seed demo relief camps linked to their managers
-INSERT INTO relief_camps (id, manager_id, camp_name, district, address, capacity, is_active)
+-- Seed demo relief camps linked to their managers (with lat/long from V30 migration)
+INSERT INTO relief_camps (id, manager_id, camp_name, district, address, capacity, is_active, latitude, longitude)
 VALUES
   ('00000000-0000-0000-0002-000000000001',
    '00000000-0000-0000-0001-000000000002',
-   'Colombo Central Relief Camp', 'Colombo', '123 Main St, Colombo 01', 500, true),
+   'Colombo Central Relief Camp', 'Colombo', '123 Main St, Colombo 01', 500, true, 6.9271, 79.8612),
   ('00000000-0000-0000-0002-000000000002',
    '00000000-0000-0000-0001-000000000003',
-   'Galle Coastal Safezone', 'Galle', '45 Beach Rd, Galle', 300, true)
+   'Galle Coastal Safezone', 'Galle', '45 Beach Rd, Galle', 300, true, 6.0329, 80.2168)
+ON CONFLICT DO NOTHING;
+
+-- Seed demo relief needs for camps
+INSERT INTO relief_needs (id, camp_id, item_name, category, quantity_required, quantity_pledged, urgency, is_active)
+VALUES
+  ('00000000-0000-0000-0003-000000000001',
+   '00000000-0000-0000-0002-000000000001',
+   'Rice (10kg bags)', 'Food', 100, 25, 'high', true),
+  ('00000000-0000-0000-0003-000000000002',
+   '00000000-0000-0000-0002-000000000001',
+   'Drinking Water (5L bottles)', 'Food', 200, 50, 'critical', true),
+  ('00000000-0000-0000-0003-000000000003',
+   '00000000-0000-0000-0002-000000000001',
+   'Blankets', 'Shelter', 150, 10, 'medium', true),
+  ('00000000-0000-0000-0003-000000000004',
+   '00000000-0000-0000-0002-000000000002',
+   'First Aid Kits', 'Medicine', 50, 5, 'high', true),
+  ('00000000-0000-0000-0003-000000000005',
+   '00000000-0000-0000-0002-000000000002',
+   'Tarpaulin Sheets', 'Shelter', 100, 0, 'critical', true)
+ON CONFLICT DO NOTHING;
+
+-- Seed demo broadcast alerts
+INSERT INTO broadcast_alerts (id, title, message, severity, is_active, created_by)
+VALUES
+  ('00000000-0000-0000-0004-000000000001',
+   'Flood Warning: Western Province',
+   'Heavy rainfall expected in Colombo, Gampaha, and Kalutara districts. Residents in low-lying areas should prepare for evacuation.',
+   'critical', true, '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0004-000000000002',
+   'Relief Camp Status Update',
+   'Colombo Central and Galle Coastal camps are now accepting donations. Priority needs: food, water, and medical supplies.',
+   'info', true, '00000000-0000-0000-0000-000000000001'),
+  ('00000000-0000-0000-0004-000000000003',
+   'Landslide Risk: Hill Country',
+   'Elevated landslide risk in Kandy, Nuwara Eliya, and Badulla due to continuous rainfall. Avoid hillside areas.',
+   'warning', true, '00000000-0000-0000-0000-000000000001')
 ON CONFLICT DO NOTHING;
