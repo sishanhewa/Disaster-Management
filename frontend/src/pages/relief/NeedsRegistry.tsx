@@ -264,6 +264,7 @@ const NeedsRegistry: React.FC = () => {
                         </form>
                     </div>
                 </div>
+            )}
             {/* Camp Details Modal */}
             {viewingCamp && (
                 <CampDetailsModal 
