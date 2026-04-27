@@ -1,10 +1,12 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import {
   ProtectedRoute,
+  VerifiedEmailRoute,
   AdminRoute,
   PublicOnlyRoute,
   LoginPage,
   RegisterPage,
+  VerifyEmailPage,
   DashboardPage,
   MapPage,
   ReportsPage,
@@ -28,6 +30,7 @@ import {
   AdminCampsPage,
   AdminNeedsPage,
   OperationsPage,
+  AlertsPage,
 } from './routes';
 import AuthLayout from '../components/layout/AuthLayout';
 import AppShell from '../components/layout/AppShell';
@@ -57,7 +60,8 @@ import IncidentTracker from '../pages/expert/IncidentTracker';
 
 /* ─── Root redirect component ─────────────────────────────────── */
 function RootRedirect() {
-  return <Navigate to="/dashboard" replace />;
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -81,6 +85,14 @@ export const router = createBrowserRouter([
     ],
   },
 
+  /* Email Verification (requires auth but NOT verified email) */
+  {
+    element: <VerifiedEmailRoute />,
+    children: [
+      { path: '/verify-email', element: <VerifyEmailPage /> },
+    ],
+  },
+
   /* Routes wrapped in AppShell (theme aware) layout */
   {
     element: <AppShell />,
@@ -100,6 +112,7 @@ export const router = createBrowserRouter([
           { path: '/notifications', element: <NotificationsPage /> },
           { path: '/profile', element: <ProfilePage /> },
           { path: '/settings', element: <SettingsPage /> },
+          { path: '/alerts', element: <AlertsPage /> },
           { path: '/operations', element: <OperationsPage /> },
 
           // ── SIDMS Relief Camp Manager (requires auth) ──

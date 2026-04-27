@@ -47,6 +47,12 @@ public class AlertRuleService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Spatial unit not found: " + req.getSpatialUnitId()));
 
+        // Default channels if not provided
+        List<String> channels = req.getChannels();
+        if (channels == null || channels.isEmpty()) {
+            channels = List.of("IN_APP", "EMAIL");
+        }
+
         AlertRule rule = AlertRule.builder()
                 .userId(userId)
                 .name(req.getName())
@@ -57,6 +63,10 @@ public class AlertRuleService {
                 .timeWindowStart(req.getTimeWindowStart())
                 .timeWindowEnd(req.getTimeWindowEnd())
                 .cooldownHours(req.getCooldownHours() != null ? req.getCooldownHours() : 6)
+                .forecastWindowHours(req.getForecastWindowHours() != null ? req.getForecastWindowHours() : 1)
+                .aggregationType(req.getAggregationType() != null ? req.getAggregationType() : "CURRENT")
+                .channels(channels)
+                .severityThreshold(req.getSeverityThreshold() != null ? req.getSeverityThreshold() : "MODERATE")
                 .isActive(true)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -86,6 +96,10 @@ public class AlertRuleService {
         if (req.getTimeWindowStart() != null) rule.setTimeWindowStart(req.getTimeWindowStart());
         if (req.getTimeWindowEnd() != null) rule.setTimeWindowEnd(req.getTimeWindowEnd());
         if (req.getCooldownHours() != null) rule.setCooldownHours(req.getCooldownHours());
+        if (req.getForecastWindowHours() != null) rule.setForecastWindowHours(req.getForecastWindowHours());
+        if (req.getAggregationType() != null) rule.setAggregationType(req.getAggregationType());
+        if (req.getChannels() != null) rule.setChannels(req.getChannels());
+        if (req.getSeverityThreshold() != null) rule.setSeverityThreshold(req.getSeverityThreshold());
 
         rule = alertRuleRepository.save(rule);
         return toAlertRuleDto(rule);
@@ -129,10 +143,17 @@ public class AlertRuleService {
                 .id(rule.getId())
                 .name(rule.getName())
                 .spatialUnitName(spatialUnitName)
+                .spatialUnitId(rule.getSpatialUnitId())
                 .parameter(rule.getParameter())
                 .operator(rule.getOperator())
                 .threshold(rule.getThreshold())
+                .timeWindowStart(rule.getTimeWindowStart())
+                .timeWindowEnd(rule.getTimeWindowEnd())
                 .cooldownHours(rule.getCooldownHours())
+                .forecastWindowHours(rule.getForecastWindowHours())
+                .aggregationType(rule.getAggregationType())
+                .channels(rule.getChannels() != null ? rule.getChannels() : List.of("IN_APP", "EMAIL"))
+                .severityThreshold(rule.getSeverityThreshold())
                 .isActive(rule.getIsActive())
                 .lastTriggeredAt(rule.getLastTriggeredAt())
                 .build();

@@ -1,10 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationsApi } from '../api/endpoints';
 
-export function useNotifications() {
+export function useNotifications(params?: { page?: number; size?: number }) {
   return useQuery({
-    queryKey: ['notifications'],
-    queryFn: () => notificationsApi.getNotifications(),
+    queryKey: ['notifications', params],
+    queryFn: () => notificationsApi.getNotifications(params),
     refetchInterval: 1000 * 60, // Poll every 60 seconds
   });
 }
@@ -24,6 +24,7 @@ export function useMarkRead() {
     mutationFn: (id: string) => notificationsApi.markAsRead(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCount'] });
     },
   });
 }
@@ -35,6 +36,7 @@ export function useMarkAllRead() {
     mutationFn: () => notificationsApi.markAllAsRead(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['notifications', 'unreadCount'] });
     },
   });
 }

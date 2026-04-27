@@ -49,10 +49,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             } catch (Exception e) {
                 SecurityContextHolder.clearContext();
-                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                response.setContentType("application/json");
-                response.getWriter().write("{\"error\":\"Invalid or expired token\"}");
-                return;
+                // Do not return 401 here. Continue the chain as anonymous.
+                // If the route is protected, Spring Security's entry point will throw the 401.
             }
         }
 

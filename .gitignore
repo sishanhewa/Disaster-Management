@@ -38,3 +38,11 @@ backend/target/
 /folder_structure.txt
 /tree.py
 /ai-service/venv/
+
+
+.claude
+_ai_agent
+Disaster-Management.txt
+script.py
+copilot-instructions.md
+CLAUDE.md

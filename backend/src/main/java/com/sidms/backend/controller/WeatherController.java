@@ -2,7 +2,7 @@ package com.sidms.backend.controller;
 
 import com.sidms.backend.dto.disaster.WarningResponse;
 import com.sidms.backend.dto.weather.SpatialUnitSearchResult;
-import com.sidms.backend.dto.weather.WeatherResponse;
+import com.sidms.backend.dto.weather.advanced.AdvancedForecastResponse;
 import com.sidms.backend.service.DisasterWarningService;
 import com.sidms.backend.service.WeatherService;
 import jakarta.validation.constraints.DecimalMax;
@@ -30,7 +30,7 @@ public class WeatherController {
     }
 
     @GetMapping("/spatial-unit/{id}")
-    public ResponseEntity<WeatherResponse> getWeatherForSpatialUnit(@PathVariable UUID id) {
+    public ResponseEntity<AdvancedForecastResponse> getWeatherForSpatialUnit(@PathVariable UUID id) {
         return ResponseEntity.ok(weatherService.getWeatherForSpatialUnit(id));
     }
 
@@ -41,7 +41,7 @@ public class WeatherController {
     }
 
     @GetMapping("/exact")
-    public ResponseEntity<WeatherResponse> getNearestSpatialUnit(
+    public ResponseEntity<AdvancedForecastResponse> getNearestSpatialUnit(
             @RequestParam @DecimalMin(value = "-90.0", message = "lat must be >= -90") @DecimalMax(value = "90.0", message = "lat must be <= 90") Double lat,
             @RequestParam @DecimalMin(value = "-180.0", message = "lng must be >= -180") @DecimalMax(value = "180.0", message = "lng must be <= 180") Double lng) {
         return ResponseEntity.ok(weatherService.getNearestSpatialUnit(lat, lng));
@@ -52,15 +52,17 @@ public class WeatherController {
         return ResponseEntity.ok(disasterWarningService.getActiveWarningsForSpatialUnit(spatialUnitId));
     }
 
-    @GetMapping("/forecast")
-    public ResponseEntity<java.util.Map<String, Object>> getForecastWeather(
+
+
+    @GetMapping("/celestial")
+    public ResponseEntity<com.sidms.backend.dto.weather.advanced.CelestialEventsResponse> getCelestialEvents(
             @RequestParam @DecimalMin(value = "-90.0", message = "lat must be >= -90") @DecimalMax(value = "90.0", message = "lat must be <= 90") Double lat,
             @RequestParam @DecimalMin(value = "-180.0", message = "lng must be >= -180") @DecimalMax(value = "180.0", message = "lng must be <= 180") Double lng) {
-        return ResponseEntity.ok(weatherService.getForecastWeather(lat, lng));
+        return ResponseEntity.ok(weatherService.getCelestialEvents(lat, lng));
     }
 
     @GetMapping("/tracked")
-    public ResponseEntity<List<WeatherResponse>> getAllTrackedWeather() {
+    public ResponseEntity<List<AdvancedForecastResponse>> getAllTrackedWeather() {
         return ResponseEntity.ok(weatherService.getAllTrackedWeather());
     }
 }

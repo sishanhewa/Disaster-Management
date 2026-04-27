@@ -11,6 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.TransactionCallbackWithoutResult;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -26,8 +29,10 @@ public class IdwComputationService {
     private final SpatialUnitRepository spatialUnitRepository;
     private final WeatherNodeRepository weatherNodeRepository;
     private final SpatialUnitWeatherNodeMappingRepository mappingRepository;
+    private final TransactionTemplate transactionTemplate;
 
-    private static final int TOP_N = 4;
+    // ── CHANGE: Use 6 nodes instead of 4 for better accuracy in complex terrain ──
+    private static final int TOP_N = 6;  // Was: 4
     private static final int BATCH_SIZE = 500;
     private static final double EARTH_RADIUS_KM = 6371.0;
 
@@ -69,7 +74,14 @@ public class IdwComputationService {
                 batch.addAll(mappings);
 
                 if (batch.size() >= BATCH_SIZE * TOP_N) {
-                    saveBatch(batch);
+                    // ── WRAP IN TRANSACTION TEMPLATE ──────────────
+                    transactionTemplate.execute(new TransactionCallbackWithoutResult() {
+                        @Override
+                        protected void doInTransactionWithoutResult(TransactionStatus status) {
+                            saveBatchInternal(batch);
+                        }
+                    });
+                    // ──────────────────────────────────────────────
                 }
 
                 int current = progress.incrementAndGet();
@@ -79,9 +91,14 @@ public class IdwComputationService {
                 }
             }
 
-            // Save remaining
+            // Save remaining batch
             if (!batch.isEmpty()) {
-                saveBatch(batch);
+                transactionTemplate.execute(new TransactionCallbackWithoutResult() {
+                    @Override
+                    protected void doInTransactionWithoutResult(TransactionStatus status) {
+                        saveBatchInternal(batch);
+                    }
+                });
             }
 
             long elapsed = System.currentTimeMillis() - startTime;
@@ -116,63 +133,85 @@ public class IdwComputationService {
     // IDW computation per spatial unit
     // ──────────────────────────────────────────────
 
+    // ── CHANGE: Updated computeMappingsForUnit with proper 3D IDW ──
     private List<SpatialUnitWeatherNodeMapping> computeMappingsForUnit(
             SpatialUnit su, List<WeatherNode> weatherNodes) {
 
-        // Compute distances to all weather nodes
-        List<NodeDistance> distances = new ArrayList<>(weatherNodes.size());
+        double suElev = su.getElevationM() != null ? su.getElevationM() : 0.0;
+
+        // Compute 3D effective distances to ALL weather nodes
+        List<NodeDistance3D> distances = new ArrayList<>(weatherNodes.size());
         for (WeatherNode node : weatherNodes) {
-            double dist = haversine(su.getLat(), su.getLng(), node.getLat(), node.getLng());
-            distances.add(new NodeDistance(node.getId(), dist));
+            double horizDist = haversine(su.getLat(), su.getLng(), node.getLat(), node.getLng());
+            double nodeElev = node.getElevationM() != null ? node.getElevationM().doubleValue() : 0.0;
+            double elevDiff = suElev - nodeElev;
+
+            // 3D effective distance: 100m elevation ≈ 1km horizontal for interpolation weight
+            double vertDist = Math.abs(elevDiff) / 100.0;
+            double effectiveDist = Math.sqrt(
+                    horizDist * horizDist + vertDist * vertDist
+            );
+
+            distances.add(new NodeDistance3D(node, horizDist, effectiveDist, elevDiff));
         }
 
-        // Sort by distance and take top N
-        distances.sort(Comparator.comparingDouble(nd -> nd.distance));
-        List<NodeDistance> topN = distances.subList(0, Math.min(TOP_N, distances.size()));
+        // Sort by effective distance (not horizontal!) and take top N
+        distances.sort(Comparator.comparingDouble(nd -> nd.effectiveDistance));
+        List<NodeDistance3D> topN = distances.subList(0, Math.min(TOP_N, distances.size()));
 
-        // Compute IDW weights: w_i = 1 / dist_i^2
+        // Compute IDW weights using EFFECTIVE distance: w = 1 / eff_dist²
         double sumWeights = 0.0;
         double[] rawWeights = new double[topN.size()];
         for (int i = 0; i < topN.size(); i++) {
-            double dist = topN.get(i).distance;
-            // Guard against zero distance (node exactly at spatial unit center)
-            if (dist < 0.001) dist = 0.001;
-            rawWeights[i] = 1.0 / (dist * dist);
+            double effDist = topN.get(i).effectiveDistance;
+            if (effDist < 0.001) effDist = 0.001; // guard against division by zero
+            rawWeights[i] = 1.0 / (effDist * effDist);
             sumWeights += rawWeights[i];
         }
 
-        // Normalize and create mappings
+        // Build mappings with PRE-COMPUTED values (runtime uses these directly)
         List<SpatialUnitWeatherNodeMapping> mappings = new ArrayList<>(TOP_N);
         LocalDateTime now = LocalDateTime.now();
 
         for (int i = 0; i < topN.size(); i++) {
+            NodeDistance3D nd = topN.get(i);
             double normalizedWeight = rawWeights[i] / sumWeights;
-            int rank = i + 1;
 
             mappings.add(SpatialUnitWeatherNodeMapping.builder()
                     .spatialUnitId(su.getId())
-                    .weatherNodeId(topN.get(i).nodeId)
-                    .rank(rank)
-                    .distanceKm(topN.get(i).distance)
-                    .idwWeight(normalizedWeight)
-                    .isPrimary(rank == 1)
+                    .weatherNodeId(nd.node.getId())
+                    .rank(i + 1)
+                    .distanceKm(nd.horizontalDistance)      // Keep horizontal for reference/debug
+                    .idwWeight(normalizedWeight)             // ← Pre-computed 3D weight
+                    .effectiveDistance(nd.effectiveDistance) // ← Store 3D distance
+                    .elevationDiffM(nd.elevationDiff)        // ← Store elevation delta
+                    .isPrimary(i == 0)
                     .createdAt(now)
                     .build());
         }
-
         return mappings;
     }
 
-    @Transactional
-    protected void saveBatch(List<SpatialUnitWeatherNodeMapping> batch) {
-        // Delete existing mappings for all spatial units in the batch
+    /**
+     * Internal batch save logic - NO @Transactional annotation.
+     * Call this via transactionTemplate.execute() from async context.
+     */
+    private void saveBatchInternal(List<SpatialUnitWeatherNodeMapping> batch) {
+        if (batch.isEmpty()) return;
+
         Set<UUID> spatialUnitIds = new HashSet<>();
         for (SpatialUnitWeatherNodeMapping m : batch) {
             spatialUnitIds.add(m.getSpatialUnitId());
         }
+
+        // Delete existing mappings for these spatial units
         for (UUID suId : spatialUnitIds) {
             mappingRepository.deleteBySpatialUnitId(suId);
         }
+
+        // ── CRITICAL FIX: Force DELETEs to execute before INSERTs ──
+        mappingRepository.flush();
+        // ─────────────────────────────────────────────────────────
 
         mappingRepository.saveAll(batch);
         mappingRepository.flush();
@@ -198,12 +237,27 @@ public class IdwComputationService {
     // ──────────────────────────────────────────────
 
     private static class NodeDistance {
-        final UUID nodeId;
+        final WeatherNode node;
         final double distance;
 
-        NodeDistance(UUID nodeId, double distance) {
-            this.nodeId = nodeId;
+        NodeDistance(WeatherNode node, double distance) {
+            this.node = node;
             this.distance = distance;
+        }
+    }
+
+    // ── CHANGE: New helper record for 3D distance calculation ──
+    private static class NodeDistance3D {
+        final WeatherNode node;
+        final double horizontalDistance;  // Pure haversine km
+        final double effectiveDistance;   // 3D: sqrt(horiz² + (elev_diff/100)²)
+        final double elevationDiff;       // Unit elev - Node elev (meters)
+
+        NodeDistance3D(WeatherNode node, double horiz, double eff, double elevDiff) {
+            this.node = node;
+            this.horizontalDistance = horiz;
+            this.effectiveDistance = eff;
+            this.elevationDiff = elevDiff;
         }
     }
 }

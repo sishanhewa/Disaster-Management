@@ -2,7 +2,7 @@ package com.sidms.backend.service;
 
 import com.sidms.backend.dto.admin.SchedulerWorkerStatusDto;
 import com.sidms.backend.repository.FloodGaugeReadingRepository;
-import com.sidms.backend.repository.ForecastProjectionRepository;
+import com.sidms.backend.repository.WeatherNodeHourlyForecastRepository;
 import com.sidms.backend.repository.MetBulletinRepository;
 import com.sidms.backend.repository.RivernetDeviceRepository;
 import com.sidms.backend.repository.WeatherNodeLiveCacheRepository;
@@ -18,7 +18,7 @@ import java.util.List;
 public class SchedulerAdminService {
 
     private final WeatherNodeLiveCacheRepository weatherNodeLiveCacheRepository;
-    private final ForecastProjectionRepository forecastProjectionRepository;
+    private final WeatherNodeHourlyForecastRepository weatherNodeHourlyForecastRepository;
     private final MetBulletinRepository metBulletinRepository;
     private final FloodGaugeReadingRepository floodGaugeReadingRepository;
     private final RivernetDeviceRepository rivernetDeviceRepository;
@@ -45,12 +45,12 @@ public class SchedulerAdminService {
     private long warmingIntervalMs;
 
     public SchedulerAdminService(WeatherNodeLiveCacheRepository weatherNodeLiveCacheRepository,
-            ForecastProjectionRepository forecastProjectionRepository,
+            WeatherNodeHourlyForecastRepository weatherNodeHourlyForecastRepository,
             MetBulletinRepository metBulletinRepository,
             FloodGaugeReadingRepository floodGaugeReadingRepository,
             RivernetDeviceRepository rivernetDeviceRepository) {
         this.weatherNodeLiveCacheRepository = weatherNodeLiveCacheRepository;
-        this.forecastProjectionRepository = forecastProjectionRepository;
+        this.weatherNodeHourlyForecastRepository = weatherNodeHourlyForecastRepository;
         this.metBulletinRepository = metBulletinRepository;
         this.floodGaugeReadingRepository = floodGaugeReadingRepository;
         this.rivernetDeviceRepository = rivernetDeviceRepository;
@@ -70,13 +70,13 @@ public class SchedulerAdminService {
 
         workers.add(buildStatus(
                 "sync-forecasts",
-                "Forecast Projection Sync",
-                "daily@01:30 + manual",
+                "OpenMeteo Forecast Sync",
+                "daily@00:15, 06:15, 12:15, 18:15",
                 weatherSyncEnabled,
-                forecastProjectionRepository.findTopByOrderByGeneratedAtDesc().map(v -> v.getGeneratedAt())
+                weatherNodeHourlyForecastRepository.findTopByOrderByCreatedAtDesc().map(v -> v.getCreatedAt())
                         .orElse(null),
-                "/api/v1/admin/setup/sync-forecasts",
-                "Refreshes forecast projections and analytics baselines (requires weather.enabled)."));
+                "/api/v1/admin/sync/run/openmeteo_forecast_sync",
+                "Pulls long-term hourly forecasts for Weather Nodes from OpenMeteo (requires weather.enabled)."));
 
         workers.add(buildStatus(
                 "sync-meteo",
@@ -139,7 +139,7 @@ public class SchedulerAdminService {
                 .intervalHint(intervalHint)
                 .enabled(enabled)
                 .lastDataAt(lastDataAt)
-                .staleMinutes(lastDataAt == null ? null : Duration.between(lastDataAt, LocalDateTime.now()).toMinutes())
+                .staleMinutes(lastDataAt == null ? null : Duration.between(lastDataAt, LocalDateTime.now(java.time.ZoneOffset.UTC)).toMinutes())
                 .triggerEndpoint(triggerEndpoint)
                 .notes(notes)
                 .build();

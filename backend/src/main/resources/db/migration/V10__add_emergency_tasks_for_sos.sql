@@ -1,0 +1,2 @@
+-- This is a placeholder for a missing V10 migration that exists in some database environments
+-- but is missing from the source code. Empty to ensure continuity.

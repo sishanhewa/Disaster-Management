@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Bell, CheckCircle, Info, AlertTriangle, AlertCircle, 
-  Trash2, BellOff, ArrowRight, Loader2, Calendar
+  Trash2, BellOff, ArrowRight, Loader2, Calendar, MapPin, ExternalLink
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { notificationsApi } from '../api/endpoints';
 import { Badge } from '../components/common/Badge';
 import Card from '../components/common/Card';
 import Button from '../components/common/Button';
 import { toast } from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
+import { useLocationContextStore } from '../store/locationContextStore';
 
 const NotificationsPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { setSelectedLocation } = useLocationContextStore();
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchingMore, setFetchingMore] = useState(false);
@@ -44,8 +48,8 @@ const NotificationsPage: React.FC = () => {
     try {
       const { unreadCount } = await notificationsApi.getUnreadCount();
       setUnreadCount(unreadCount);
-    } catch (error) {
-      console.error('Failed to fetch unread count');
+    } catch {
+      toast.error('Failed to fetch unread count');
     }
   };
 
@@ -57,9 +61,40 @@ const NotificationsPage: React.FC = () => {
       await notificationsApi.markAsRead(id);
       setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
       setUnreadCount(prev => Math.max(0, prev - 1));
-    } catch (error) {
-      console.error('Failed to mark as read');
+    } catch {
+      toast.error('Failed to mark notification as read');
     }
+  };
+
+  const handleNotificationClick = (notif: any) => {
+    // Mark as read first
+    markAsRead(notif.id);
+
+    // Deep-link navigation based on notification metadata
+    const { warningId, spatialUnitId, spatialUnitName, spatialUnitType, lat, lng } = notif;
+
+    if (warningId && spatialUnitId) {
+      // Weather warning notification - navigate to analytics with context
+      setSelectedLocation({
+        id: spatialUnitId,
+        name: spatialUnitName || 'Selected Location',
+        type: spatialUnitType || 'DISTRICT',
+        lat,
+        lng,
+      });
+      navigate(`/analytics?warningId=${warningId}&unitId=${spatialUnitId}`);
+    } else if (spatialUnitId) {
+      // Location-based notification - navigate to dashboard with location context
+      setSelectedLocation({
+        id: spatialUnitId,
+        name: spatialUnitName || 'Selected Location',
+        type: spatialUnitType || 'DISTRICT',
+        lat,
+        lng,
+      });
+      navigate('/dashboard');
+    }
+    // If no spatialUnitId, stay on notifications page (already here)
   };
 
   const markAllRead = async () => {
@@ -160,9 +195,32 @@ const NotificationsPage: React.FC = () => {
                     )}
                   </div>
 
-                  <button className="p-2 text-slate-600 hover:text-white opacity-0 group-hover:opacity-100 transition-all self-center">
-                    <ArrowRight size={18} />
-                  </button>
+                  <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                    {(notif.spatialUnitId || notif.warningId) && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleNotificationClick(notif);
+                        }}
+                        className="p-2 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 rounded-lg transition-all"
+                        title="View on map"
+                        aria-label="View on map"
+                      >
+                        <MapPin size={18} />
+                      </button>
+                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        markAsRead(notif.id);
+                      }}
+                      className="p-2 text-slate-600 hover:text-white hover:bg-slate-700 rounded-lg transition-all"
+                      title="Mark as read"
+                      aria-label="Mark as read"
+                    >
+                      <ArrowRight size={18} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

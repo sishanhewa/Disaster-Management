@@ -30,38 +30,39 @@ public class UserProfileController {
 
     @PutMapping("/me")
     public ResponseEntity<UserDto> updateProfile(@AuthenticationPrincipal CustomUserDetails principal,
-                                                  @RequestBody UpdateProfileRequest request) {
+            @RequestBody UpdateProfileRequest request) {
         return ResponseEntity.ok(userProfileService.updateProfile(principal.getUser().getId(), request));
     }
 
     @PutMapping("/me/preferences")
     public ResponseEntity<Map<String, String>> updatePreferences(@AuthenticationPrincipal CustomUserDetails principal,
-                                                                  @RequestBody UpdatePreferencesRequest request) {
+            @RequestBody UpdatePreferencesRequest request) {
         userProfileService.updatePreferences(principal.getUser().getId(), request);
         return ResponseEntity.ok(Map.of("message", "Preferences updated successfully"));
     }
 
     @PostMapping("/me/change-password")
     public ResponseEntity<Map<String, String>> changePassword(@AuthenticationPrincipal CustomUserDetails principal,
-                                                               @RequestBody ChangePasswordRequest request) {
+            @RequestBody ChangePasswordRequest request) {
         userProfileService.changePassword(principal.getUser().getId(), request);
         return ResponseEntity.ok(Map.of("message", "Password changed successfully"));
     }
 
     @GetMapping("/me/saved-locations")
-    public ResponseEntity<List<SavedLocation>> getSavedLocations(@AuthenticationPrincipal CustomUserDetails principal) {
+    public ResponseEntity<List<SavedLocationDto>> getSavedLocations(
+            @AuthenticationPrincipal CustomUserDetails principal) {
         return ResponseEntity.ok(userProfileService.getSavedLocations(principal.getUser().getId()));
     }
 
     @PostMapping("/me/saved-locations")
     public ResponseEntity<SavedLocation> addSavedLocation(@AuthenticationPrincipal CustomUserDetails principal,
-                                                           @RequestBody SavedLocationRequest request) {
+            @RequestBody SavedLocationRequest request) {
         return ResponseEntity.ok(userProfileService.addSavedLocation(principal.getUser().getId(), request));
     }
 
     @DeleteMapping("/me/saved-locations/{locationId}")
     public ResponseEntity<Map<String, String>> deleteSavedLocation(@AuthenticationPrincipal CustomUserDetails principal,
-                                                                    @PathVariable UUID locationId) {
+            @PathVariable UUID locationId) {
         userProfileService.deleteSavedLocation(principal.getUser().getId(), locationId);
         return ResponseEntity.ok(Map.of("message", "Saved location deleted successfully"));
     }

@@ -38,6 +38,9 @@ public class User {
     @Column(name = "email_verified")
     private Boolean emailVerified;
 
+    @Column(name = "phone_verified")
+    private Boolean phoneVerified;
+
     @Column(name = "is_active")
     private Boolean isActive;
 
@@ -50,7 +53,7 @@ public class User {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
             name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),

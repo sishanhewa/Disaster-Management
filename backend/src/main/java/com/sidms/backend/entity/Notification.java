@@ -42,4 +42,19 @@ public class Notification {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
+
+    @Column(name = "priority")
+    private Integer priority;
+
+    @Column(name = "source_entity_type", length = 50)
+    private String sourceEntityType;
+
+    @Column(name = "source_entity_id", length = 100)
+    private String sourceEntityId;
+
+    @Column(name = "action_url", length = 500)
+    private String actionUrl;
 }

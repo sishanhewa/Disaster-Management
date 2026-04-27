@@ -43,6 +43,36 @@ public class WeatherNodeHourlyForecast {
     @Column(name = "cape_jkg")
     private Double capeJkg;
 
+    @Column(name = "relative_humidity_pct")
+    private Double relativeHumidityPct;
+
+    @Column(name = "dew_point_c")
+    private Double dewPointC;
+
+    @Column(name = "apparent_temp_c")
+    private Double apparentTempC;
+
+    @Column(name = "weather_code")
+    private Integer weatherCode;
+
+    @Column(name = "pressure_hpa")
+    private Double pressureHpa;
+
+    @Column(name = "cloud_cover_pct")
+    private Double cloudCoverPct;
+
+    @Column(name = "visibility_m")
+    private Double visibilityM;
+
+    @Column(name = "wind_direction_deg")
+    private Double windDirectionDeg;
+
+    @Column(name = "wind_gusts_kmh")
+    private Double windGustsKmh;
+
+    @Column(name = "uv_index")
+    private Double uvIndex;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 }

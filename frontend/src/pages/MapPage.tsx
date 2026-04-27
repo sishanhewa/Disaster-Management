@@ -7,9 +7,10 @@ import { SpatialUnitSearch } from '../components/common/SpatialUnitSearch';
 import { SeverityBadge } from '../components/common/SeverityBadge';
 import { Badge } from '../components/common/Badge';
 import { Loader2, Info, CloudRain, AlertTriangle, ExternalLink, Navigation, Wind, Droplets, ThermometerSun } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import L from 'leaflet';
+import { useLocationContextStore } from '../store/locationContextStore';
 
 const CENTER_SL = [7.8731, 80.7718] as [number, number];
 const DARK_MATTER_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -65,10 +66,34 @@ function MapController({ flyTo }: { flyTo: { lat: number; lng: number; zoom: num
 
 export default function MapPage() {
   const [zoom, setZoom] = useState(7);
-  const [selectedUnit, setSelectedUnit] = useState<any>(null);
+  const [selectedUnit, setSelectedUnitState] = useState<any>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; zoom: number } | null>(null);
   const [selectedUnitPin, setSelectedUnitPin] = useState<{ lat: number; lng: number } | null>(null);
   const [isLocating, setIsLocating] = useState(false);
+  const [searchParams] = useSearchParams();
+
+  // Location context for cross-page state consistency
+  const { selectedLocation, setSelectedLocation } = useLocationContextStore();
+
+  // Sync with location context on mount (for deep-link navigation)
+  useEffect(() => {
+    if (selectedLocation && !selectedUnit) {
+      const unit = {
+        id: selectedLocation.id,
+        name: selectedLocation.name,
+        type: selectedLocation.type,
+        lat: selectedLocation.lat,
+        lng: selectedLocation.lng,
+      };
+      setSelectedUnitState(unit);
+      // Fly to location
+      const zoomLevels: Record<string, number> = { COUNTRY: 7, PROVINCE: 9, DISTRICT: 11, DS_DIVISION: 13, GN_DIVISION: 15 };
+      if (unit.lat != null && unit.lng != null) {
+        setFlyTo({ lat: unit.lat, lng: unit.lng, zoom: zoomLevels[unit.type] || 11 });
+        setSelectedUnitPin({ lat: unit.lat, lng: unit.lng });
+      }
+    }
+  }, [selectedLocation]);
 
   const { data: activeWarnings } = useQuery<any[]>({
     queryKey: ['activeWarnings'],
@@ -78,6 +103,20 @@ export default function MapPage() {
   const [clickedLocation, setClickedLocation] = useState<{lat: number, lng: number} | null>(null);
   const [clickedWeather, setClickedWeather] = useState<any>(null);
   const [loadingClicked, setLoadingClicked] = useState(false);
+
+  const setSelectedUnit = (unit: any) => {
+    setSelectedUnitState(unit);
+    // Sync to global location context for cross-page consistency
+    if (unit) {
+      setSelectedLocation({
+        id: unit.id,
+        name: unit.name,
+        type: unit.type,
+        lat: unit.lat ?? unit.latitude,
+        lng: unit.lng ?? unit.longitude,
+      });
+    }
+  };
 
   const onSelectUnit = (
     unit: any,
@@ -98,6 +137,7 @@ export default function MapPage() {
       }
       setSelectedUnitPin({ lat, lng });
     }
+    // Sync to global location context
     setSelectedUnit(unit);
   };
 

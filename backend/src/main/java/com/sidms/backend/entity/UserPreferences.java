@@ -51,6 +51,9 @@ public class UserPreferences {
     @Column(name = "notif_inapp")
     private Boolean notifInapp;
 
+    @Column(name = "notif_sms")
+    private Boolean notifSms;
+
     @Column(name = "created_at")
     private LocalDateTime createdAt;
 

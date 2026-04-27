@@ -8,6 +8,8 @@ export interface UserDto {
   displayName: string;
   avatarUrl?: string;
   phone?: string;
+  emailVerified?: boolean;
+  phoneVerified?: boolean;
   roles: string[];
   unitTemp?: string;
   unitWind?: string;
