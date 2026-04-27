@@ -25,7 +25,7 @@ public class ReliefPledge {
     private UUID id;
 
     /** Nullable — pledge may come from an anonymous donor */
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "donor_id")
     private User donor;
 
@@ -38,7 +38,7 @@ public class ReliefPledge {
     @Column(name = "donor_phone")
     private String donorPhone;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "need_id", nullable = false)
     private ReliefNeed need;
 
