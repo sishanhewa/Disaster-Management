@@ -99,6 +99,7 @@ const AdminSystemPage = () => {
   const [spatialUnits, setSpatialUnits] = useState<any[]>([]);
   const [weatherNodes, setWeatherNodes] = useState<any[]>([]);
   const [workerStatuses, setWorkerStatuses] = useState<any[]>([]);
+  const [syncStatuses, setSyncStatuses] = useState<any[]>([]);
 
   const [spatialPage, setSpatialPage] = useState(0);
   const [spatialSize, setSpatialSize] = useState(20);
@@ -192,6 +193,15 @@ const AdminSystemPage = () => {
     setWorkerStatuses(Array.isArray(res) ? res : []);
   };
 
+  const loadSyncStatuses = async () => {
+    try {
+      const res = await adminApi.getSyncStatus();
+      setSyncStatuses(Array.isArray(res) ? res : []);
+    } catch (e) {
+      console.error("Failed to load sync statuses", e);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     setError('');
@@ -201,7 +211,7 @@ const AdminSystemPage = () => {
       } else if (activeTab === 'nodes') {
         await loadWeatherNodes();
       } else {
-        await loadWorkers();
+        await Promise.all([loadWorkers(), loadSyncStatuses()]);
       }
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load data');
@@ -247,6 +257,23 @@ const AdminSystemPage = () => {
       }
     } catch (err: any) {
       setError(`Failed to trigger ${action}: ${err.response?.data?.message || err.message}`);
+    }
+  };
+
+  const handleSyncAction = async (actionType: 'run' | 'reset', jobName: string) => {
+    try {
+      setSuccess('');
+      setError('');
+      if (actionType === 'run') {
+        await adminApi.runSyncJob(jobName);
+        setSuccess(`Job ${jobName} force-run triggered.`);
+      } else {
+        await adminApi.resetSyncCooldown(jobName);
+        setSuccess(`Job ${jobName} cooldown reset.`);
+      }
+      await loadSyncStatuses();
+    } catch (err: any) {
+      setError(`Failed to ${actionType} job ${jobName}: ${err.response?.data?.message || err.message}`);
     }
   };
 
@@ -761,57 +788,123 @@ const AdminSystemPage = () => {
   );
 
   const renderWorkersTab = () => (
-    <div className="space-y-6">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h3 className="text-xl font-bold text-white">System Workers & Tasks</h3>
-          <p className="text-slate-400 text-sm">Manually trigger background synchronization and data import tasks.</p>
+    <div className="space-y-10">
+      {/* Structural Setup Tasks */}
+      <div>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-white">Structural Setup Tasks</h3>
+            <p className="text-slate-400 text-sm">Manually trigger one-time data import and structural tasks.</p>
+          </div>
+          <button onClick={loadWorkers} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg transition-colors text-sm font-medium">
+            <RefreshCw className="w-4 h-4" /> Refresh Status
+          </button>
         </div>
-        <button onClick={loadWorkers} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg transition-colors text-sm font-medium">
-          <RefreshCw className="w-4 h-4" /> Refresh Status
-        </button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {[
+            { icon: Map, key: 'import-spatial', name: 'Import Spatial Data', desc: 'Syncs Sri Lanka districts and GN divisions' },
+            { icon: Cpu, key: 'generate-nodes', name: 'Generate Nodes', desc: 'Regenerates the weather grid layout' },
+            { icon: Activity, key: 'compute-idw', name: 'Compute IDW', desc: 'Forces IDW recomputation for all units' },
+            { icon: Database, key: 'backfill-history', days: 730, name: 'Backfill History', desc: 'Backfills historical weather observations (default 730 days)' },
+          ].map((worker, i) => {
+            const status = workerStatuses.find((s) => s.workerKey === worker.key);
+            return (
+              <div key={i} className="bg-slate-800/50 border border-slate-700/50 p-5 rounded-xl flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-300">
+                    <worker.icon className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-slate-200 font-medium">{worker.name}</h4>
+                    <p className="text-xs text-slate-400 mt-1">{worker.desc}</p>
+                    {status && (
+                      <div className="mt-2 text-[11px] text-slate-400 space-y-1">
+                        <p>State: <span className={`${status.staleMinutes == null || status.staleMinutes <= 120 ? 'text-emerald-400' : 'text-amber-400'}`}>{status.staleMinutes == null ? 'Unknown' : `${status.staleMinutes} min stale`}</span></p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => handleTrigger(worker.name, worker.key, worker.days)} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg transition-colors text-sm font-medium w-full sm:w-auto justify-center">
+                  <Play className="w-4 h-4 text-emerald-400" /> Run Task
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {[
-          { icon: Map, key: 'import-spatial', name: 'Import Spatial Data', desc: 'Syncs Sri Lanka districts and GN divisions' },
-          { icon: Cpu, key: 'generate-nodes', name: 'Generate Nodes', desc: 'Regenerates the weather grid layout' },
-          { icon: Activity, key: 'compute-idw', name: 'Compute IDW', desc: 'Forces IDW recomputation for all units' },
-          { icon: Database, key: 'backfill-history', days: 730, name: 'Backfill History', desc: 'Backfills historical weather observations (default 730 days)' },
-          { icon: Database, key: 'sync-weather', name: 'Sync Node Weather', desc: 'Immediate Open-Meteo node sync' },
-          { icon: CloudRain, key: 'sync-forecasts', name: 'Sync Forecasts', desc: 'Forces daily forecast sync' },
-          { icon: RefreshCw, key: 'evict-cache', name: 'Evict Cache', desc: 'Evicts old entity cache' },
-          { icon: Radio, key: 'sync-meteo', name: 'Sync Meteo', desc: 'Scrapes latest meteo bulletins' },
-          { icon: Waves, key: 'sync-flood', name: 'Sync Flood Data', desc: 'Scrapes flood gauges' },
-          { icon: Activity, key: 'sync-rivernet', name: 'Sync Rivernet', desc: 'Syncs Rivernet sensors' },
-          { icon: Zap, key: 'warm-cache', name: 'Warm Cache', desc: 'Pre-computes and warms caches' },
-          { icon: AlertTriangle, key: 'evaluate-alerts', name: 'Evaluate Alerts', desc: 'Force evaluates alert rules' },
-        ].map((worker, i) => {
-          const status = workerStatuses.find((s) => s.workerKey === worker.key);
-          return (
-            <div key={i} className="bg-slate-800/50 border border-slate-700/50 p-5 rounded-xl flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-slate-300">
-                  <worker.icon className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-slate-200 font-medium">{worker.name}</h4>
-                  <p className="text-xs text-slate-400 mt-1">{worker.desc}</p>
-                  {status && (
-                    <div className="mt-2 text-[11px] text-slate-400 space-y-1">
-                      <p>Interval: <span className="text-slate-300">{status.intervalHint || 'N/A'}</span></p>
-                      <p>Last data: <span className="text-slate-300">{status.lastDataAt || 'Never'}</span></p>
-                      <p>State: <span className={`${status.staleMinutes == null || status.staleMinutes <= 120 ? 'text-emerald-400' : 'text-amber-400'}`}>{status.staleMinutes == null ? 'Unknown' : `${status.staleMinutes} min stale`}</span></p>
-                    </div>
-                  )}
-                </div>
-              </div>
-              <button onClick={() => handleTrigger(worker.name, worker.key, worker.days)} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg transition-colors text-sm font-medium w-full sm:w-auto justify-center">
-                <Play className="w-4 h-4 text-emerald-400" /> Run Task
-              </button>
-            </div>
-          );
-        })}
+      {/* Synchronization Dashboards */}
+      <div>
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-bold text-white">Synchronization Dashboards</h3>
+            <p className="text-slate-400 text-sm">Monitor and trigger background recurring synchronization jobs.</p>
+          </div>
+          <button onClick={loadSyncStatuses} className="flex items-center gap-2 bg-slate-700 hover:bg-slate-600 text-slate-200 px-4 py-2 rounded-lg transition-colors text-sm font-medium">
+            <RefreshCw className="w-4 h-4" /> Refresh Dashboards
+          </button>
+        </div>
+
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl overflow-hidden">
+          <table className="w-full text-left text-sm text-slate-300">
+            <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
+              <tr>
+                <th className="px-6 py-4 font-semibold tracking-wider">Job Name</th>
+                <th className="px-6 py-4 font-semibold tracking-wider">Status</th>
+                <th className="px-6 py-4 font-semibold tracking-wider">Last Run</th>
+                <th className="px-6 py-4 font-semibold tracking-wider">Next Run</th>
+                <th className="px-6 py-4 font-semibold tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/50">
+              {syncStatuses.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                    No sync jobs found.
+                  </td>
+                </tr>
+              ) : (
+                syncStatuses.map((job) => (
+                  <tr key={job.jobName} className="hover:bg-slate-700/20 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-200">{job.jobName}</td>
+                    <td className="px-6 py-4">
+                      {job.errorCount > 0 ? (
+                        <span className="text-red-400 flex items-center gap-1">
+                          <AlertTriangle className="w-4 h-4" /> Failed ({job.errorCount})
+                        </span>
+                      ) : job.manualOverride ? (
+                        <span className="text-amber-400">Override Active</span>
+                      ) : (
+                        <span className="text-emerald-400 flex items-center gap-1">
+                          <CheckCircle2 className="w-4 h-4" /> Healthy
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-slate-400">{job.lastRunAt ? new Date(job.lastRunAt).toLocaleString() : 'Never'}</td>
+                    <td className="px-6 py-4 text-slate-400">{job.nextRunAt ? new Date(job.nextRunAt).toLocaleString() : 'Pending'}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          onClick={() => handleSyncAction('run', job.jobName)}
+                          className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 rounded transition-colors text-xs font-medium flex items-center gap-1"
+                        >
+                          <Play className="w-3 h-3" /> Force Run
+                        </button>
+                        <button
+                          onClick={() => handleSyncAction('reset', job.jobName)}
+                          className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors text-xs font-medium flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Reset Cooldown
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

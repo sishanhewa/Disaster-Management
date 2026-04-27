@@ -14,6 +14,7 @@ import com.sidms.backend.scheduler.NoaaMetarSyncScheduler;
 import com.sidms.backend.scheduler.WeatherSyncScheduler;
 import com.sidms.backend.scheduler.YrNoSyncScheduler;
 import com.sidms.backend.scheduler.MetCelestialSyncScheduler;
+import com.sidms.backend.scheduler.ArcGisSyncScheduler;
 import com.sidms.backend.service.SyncStateService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -60,6 +61,7 @@ public class AdminSyncController {
     private final CacheWarmingScheduler cacheWarmingScheduler;
     private final HistoricalBackfillScheduler historicalBackfillScheduler;
     private final AlertRuleEvaluator alertRuleEvaluator;
+    private final ArcGisSyncScheduler arcGisSyncScheduler;
     private final com.sidms.backend.service.StationAnchorService stationAnchorService;
 
     // =========================================================================
@@ -98,6 +100,7 @@ public class AdminSyncController {
             case "cache_warming" -> cacheWarmingScheduler.scheduledWarmCaches();
             case "historical_backfill" -> historicalBackfillScheduler.scheduledBackfill();
             case "alert_evaluation" -> alertRuleEvaluator.scheduledEvaluateAlertRules();
+            case "arcgis_sync" -> arcGisSyncScheduler.scheduledRun();
             case "station_anchor_population" -> stationAnchorService.populateAnchors();
             default -> throw new ResourceNotFoundException("Unknown job: " + jobName);
         }

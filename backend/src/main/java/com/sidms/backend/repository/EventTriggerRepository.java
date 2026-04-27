@@ -53,4 +53,30 @@ public interface EventTriggerRepository extends JpaRepository<EventTrigger, UUID
      * Find trigger by event ID.
      */
     Optional<EventTrigger> findByEventId(UUID eventId);
+
+    @Query(value = """
+        INSERT INTO event_triggers
+        (id, event_hash, rule_id, event_id, spatial_unit_id, event_type,
+         triggered_at, expires_at, trigger_value, trigger_threshold, created_at)
+        VALUES (uuid_generate_v4(), :hash, :ruleId, :eventId, :spatialUnitId, :eventType,
+                :triggeredAt, :expiresAt, :triggerValue, :triggerThreshold, :createdAt)
+        ON CONFLICT (event_hash) DO UPDATE
+        SET triggered_at = excluded.triggered_at,
+            expires_at = excluded.expires_at,
+            event_id = excluded.event_id,
+            trigger_value = excluded.trigger_value,
+            trigger_threshold = excluded.trigger_threshold
+        WHERE event_triggers.expires_at <= excluded.triggered_at
+        RETURNING id
+        """, nativeQuery = true)
+    Optional<UUID> insertOrUpdateIfExpired(@Param("hash") String hash,
+                                @Param("ruleId") UUID ruleId,
+                                @Param("eventId") UUID eventId,
+                                @Param("spatialUnitId") UUID spatialUnitId,
+                                @Param("eventType") String eventType,
+                                @Param("triggeredAt") LocalDateTime triggeredAt,
+                                @Param("expiresAt") LocalDateTime expiresAt,
+                                @Param("triggerValue") Double triggerValue,
+                                @Param("triggerThreshold") Double triggerThreshold,
+                                @Param("createdAt") LocalDateTime createdAt);
 }
