@@ -478,6 +478,9 @@ public class EmergencyService {
                         description.append(String.format("Battery Level: %.0f%%\n",
                                         incident.getBatteryLevel() != null ? incident.getBatteryLevel() : 100));
 
+                        // Resolve spatial unit ID from coordinates
+                        UUID spatialUnitId = getSpatialUnitIdForCoordinates(incident.getLat(), incident.getLng());
+
                         // Create SosEvent
                         SosEvent event = SosEvent.builder()
                                         .incidentId(incident.getId())
@@ -491,7 +494,7 @@ public class EmergencyService {
                                         .medicalNotes(incident.getMedicalNotes())
                                         .latitude(incident.getLat())
                                         .longitude(incident.getLng())
-                                        .spatialUnitId(null) // Could be resolved via spatial lookup
+                                        .spatialUnitId(spatialUnitId) // Resolved via spatial lookup
                                         .spatialUnitName(locationName)
                                         .batteryLevel(incident.getBatteryLevel())
                                         .severity(DisasterSeverity.CRITICAL)
@@ -548,6 +551,27 @@ public class EmergencyService {
                                         .orElse("Unknown Location");
                 } catch (Exception e) {
                         return "Unknown Location";
+                }
+        }
+
+        private UUID getSpatialUnitIdForCoordinates(Double lat, Double lng) {
+                if (lat == null || lng == null) {
+                        return null;
+                }
+                try {
+                        // Find the nearest spatial unit using the same logic as getLocationNameForCoordinates
+                        var units = spatialUnitRepository.findAll();
+                        return units.stream()
+                                        .filter(u -> u.getLat() != null && u.getLng() != null)
+                                        .min(java.util.Comparator.comparingDouble(u -> {
+                                                double latDiff = u.getLat() - lat;
+                                                double lngDiff = u.getLng() - lng;
+                                                return Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+                                        }))
+                                        .map(SpatialUnit::getId)
+                                        .orElse(null);
+                } catch (Exception e) {
+                        return null;
                 }
         }
 }

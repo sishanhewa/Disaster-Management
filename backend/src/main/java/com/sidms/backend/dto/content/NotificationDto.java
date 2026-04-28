@@ -17,6 +17,8 @@ public class NotificationDto {
     private String type;
     private String title;
     private String body;
+    private UUID spatialUnitId;
+    private UUID warningId;
     private Boolean isRead;
     private LocalDateTime createdAt;
 }

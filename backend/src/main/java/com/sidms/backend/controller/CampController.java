@@ -63,6 +63,8 @@ public class CampController {
             c.setDistrict(updated.getDistrict());
             c.setAddress(updated.getAddress());
             c.setCapacity(updated.getCapacity());
+            c.setLatitude(updated.getLatitude());
+            c.setLongitude(updated.getLongitude());
             c.setIsActive(updated.getIsActive());
             c.setManager(updated.getManager());
             c.setUpdatedAt(LocalDateTime.now());

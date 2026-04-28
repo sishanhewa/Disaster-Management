@@ -58,6 +58,9 @@ import PredictionsPage from '../pages/expert/PredictionsPage';
 import AlertsManager from '../pages/expert/AlertsManager';
 import IncidentTracker from '../pages/expert/IncidentTracker';
 
+// Missing Persons (from Production)
+import MissingPersons from '../components/MissingPersons';
+
 /* ─── Root redirect component ─────────────────────────────────── */
 function RootRedirect() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated());
@@ -131,6 +134,7 @@ export const router = createBrowserRouter([
       { path: '/relief', element: <NeedsRegistry /> },
       { path: '/relief/transparency', element: <TransparencyWall /> },
       { path: '/relief/camp/:campId', element: <CampPortal /> },
+      { path: '/missing', element: <MissingPersons /> },
 
       /* Public Guidance sub-app (chatbot, news, guides) */
       {

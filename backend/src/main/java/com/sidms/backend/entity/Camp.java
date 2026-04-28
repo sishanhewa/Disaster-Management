@@ -24,7 +24,7 @@ public class Camp {
     @Column(columnDefinition = "uuid DEFAULT uuid_generate_v4()")
     private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "manager_id")
     private User manager;
 
@@ -39,6 +39,12 @@ public class Camp {
 
     @Column
     private Integer capacity;
+
+    @Column
+    private Double latitude;
+
+    @Column
+    private Double longitude;
 
     @Builder.Default
     @Column(name = "is_active")

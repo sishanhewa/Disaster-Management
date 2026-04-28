@@ -39,15 +39,7 @@ public class AdminSetupController {
     private final WeatherNodeGeneratorService weatherNodeGeneratorService;
     private final IdwComputationService idwComputationService;
     private final HistoricalBackfillScheduler historicalBackfillScheduler;
-    private final WeatherSyncScheduler weatherSyncScheduler;
-    private final MeteoSyncScheduler meteoSyncScheduler;
-    private final FloodSyncScheduler floodSyncScheduler;
-    private final CacheWarmingScheduler cacheWarmingScheduler;
-    private final AlertRuleEvaluator alertRuleEvaluator;
-    private final ArcGisSyncScheduler arcGisSyncScheduler;
     private final SchedulerAdminService schedulerAdminService;
-    private final MetCelestialSyncScheduler metCelestialSyncScheduler;
-    private final YrNoSyncScheduler yrNoSyncScheduler;
 
     // ──────────────────────────────────────────────
     // Spatial import
@@ -155,138 +147,7 @@ public class AdminSetupController {
                 "message", "Historical backfill started for the last " + days + " days."));
     }
 
-    // ──────────────────────────────────────────────
-    // Manual Syncs
-    // ──────────────────────────────────────────────
 
-    @PostMapping("/sync-weather")
-    public ResponseEntity<Map<String, Object>> syncWeather() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                yrNoSyncScheduler.doSync();
-            } catch (Exception e) {
-                log.error("Async weather sync failed: {}", e.getMessage());
-            }
-        });
-
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "SYNC_STARTED",
-                "message", "Weather sync started in background."));
-    }
-
-    @PostMapping("/sync-forecasts")
-    public ResponseEntity<Map<String, Object>> syncForecasts() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                weatherSyncScheduler.syncWeatherForecasts();
-            } catch (Exception e) {
-                log.error("Async weather forecasts sync failed: {}", e.getMessage());
-            }
-        });
-
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "SYNC_STARTED",
-                "message", "Weather Daily Forecasts sync started in background."));
-    }
-
-    @PostMapping("/evict-cache")
-    public ResponseEntity<Map<String, Object>> evictOldCache() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                weatherSyncScheduler.evictWeatherCaches();
-            } catch (Exception e) {
-                log.error("Async cache eviction failed: {}", e.getMessage());
-            }
-        });
-
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "EVICT_STARTED",
-                "message", "Entity cache eviction started in background."));
-    }
-
-    @PostMapping("/sync-meteo")
-    public ResponseEntity<Map<String, Object>> syncMeteo() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                meteoSyncScheduler.syncMeteoContent();
-            } catch (Exception e) {
-                log.error("Async meteo sync failed: {}", e.getMessage());
-            }
-        });
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "SYNC_STARTED",
-                "message", "Meteo bulletins sync started in background."));
-    }
-
-    @PostMapping("/sync-flood")
-    public ResponseEntity<Map<String, Object>> syncFlood() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                floodSyncScheduler.syncFloodGauges();
-            } catch (Exception e) {
-                log.error("Async flood sync failed: {}", e.getMessage());
-            }
-        });
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "SYNC_STARTED",
-                "message", "Irrigation Dept flood sync started in background."));
-    }
-
-    @PostMapping("/sync-rivernet")
-    public ResponseEntity<Map<String, Object>> syncRivernet() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                floodSyncScheduler.syncRivernetDevices();
-            } catch (Exception e) {
-                log.error("Async rivernet sync failed: {}", e.getMessage());
-            }
-        });
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "SYNC_STARTED",
-                "message", "Rivernet sensors sync started in background."));
-    }
-
-    @PostMapping("/sync-arcgis")
-    public ResponseEntity<Map<String, Object>> syncArcGis() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                arcGisSyncScheduler.scrapeArcGisData();
-            } catch (Exception e) {
-                log.error("Async ArcGIS sensor sync failed: {}", e.getMessage());
-            }
-        });
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "SYNC_STARTED",
-                "message", "ArcGIS sensor data scrape started in background."));
-    }
-
-    @PostMapping("/warm-cache")
-    public ResponseEntity<Map<String, Object>> warmCache() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                cacheWarmingScheduler.warmCaches();
-            } catch (Exception e) {
-                log.error("Async cache warming failed: {}", e.getMessage());
-            }
-        });
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "WARM_STARTED",
-                "message", "Cache warming started in background."));
-    }
-
-    @PostMapping("/evaluate-alerts")
-    public ResponseEntity<Map<String, Object>> evaluateAlerts() {
-        CompletableFuture.runAsync(() -> {
-            try {
-                alertRuleEvaluator.evaluateAlertRules();
-            } catch (Exception e) {
-                log.error("Async alert evaluation failed: {}", e.getMessage());
-            }
-        });
-        return ResponseEntity.accepted().body(Map.of(
-                "status", "EVAL_STARTED",
-                "message", "Alert rules evaluation started in background."));
-    }
 
     @GetMapping("/workers/status")
     public ResponseEntity<List<SchedulerWorkerStatusDto>> getWorkerStatuses() {
@@ -312,16 +173,6 @@ public class AdminSetupController {
             case "generate-nodes" -> task = weatherNodeGeneratorService::generateNodes;
             case "compute-idw" -> task = idwComputationService::computeAll;
             case "backfill-history" -> task = () -> historicalBackfillScheduler.backfillLastNDays(days);
-            case "sync-weather" -> task = yrNoSyncScheduler::doSync;
-            case "sync-celestial" -> task = metCelestialSyncScheduler::syncCelestialData;
-            case "sync-forecasts" -> task = weatherSyncScheduler::syncWeatherForecasts;
-            case "evict-cache" -> task = weatherSyncScheduler::evictWeatherCaches;
-            case "sync-meteo" -> task = meteoSyncScheduler::syncMeteoContent;
-            case "sync-flood"    -> task = floodSyncScheduler::syncFloodGauges;
-            case "sync-rivernet" -> task = floodSyncScheduler::syncRivernetDevices;
-            case "sync-arcgis"   -> task = arcGisSyncScheduler::scrapeArcGisData;
-            case "warm-cache"    -> task = cacheWarmingScheduler::warmCaches;
-            case "evaluate-alerts" -> task = alertRuleEvaluator::evaluateAlertRules;
             default -> {
                 return ResponseEntity.badRequest().body(Map.of(
                         "status", "UNKNOWN_WORKER",

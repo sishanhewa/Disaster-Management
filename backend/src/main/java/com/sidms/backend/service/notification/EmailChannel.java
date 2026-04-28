@@ -108,6 +108,8 @@ public class EmailChannel implements NotificationChannel {
             return EmailType.DISASTER_WARNING;
         } else if (type.contains("WEATHER")) {
             return EmailType.WEATHER_ALERT;
+        } else if (type.contains("SOS")) {
+            return EmailType.SOS_ALERT;
         } else {
             return EmailType.SYSTEM_NOTIFICATION;
         }

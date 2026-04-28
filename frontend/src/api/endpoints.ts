@@ -211,17 +211,14 @@ export const adminApi = {
   triggerComputeIdw: () => apiClient.post('/api/v1/admin/setup/compute-idw').then(res => res.data),
   getIdwStatus: () => apiClient.get('/api/v1/admin/setup/idw-status').then(res => res.data),
   triggerBackfillHistory: (days = 730) => apiClient.post('/api/v1/admin/setup/backfill-history', null, { params: { days } }).then(res => res.data),
-  triggerWeatherSync: () => apiClient.post('/api/v1/admin/setup/sync-weather').then(res => res.data),
-  triggerForecastSync: () => apiClient.post('/api/v1/admin/setup/sync-forecasts').then(res => res.data),
-  triggerEvictCache: () => apiClient.post('/api/v1/admin/setup/evict-cache').then(res => res.data),
-  triggerMeteoSync: () => apiClient.post('/api/v1/admin/setup/sync-meteo').then(res => res.data),
-  triggerFloodSync: () => apiClient.post('/api/v1/admin/setup/sync-flood').then(res => res.data),
-  triggerRivernetSync: () => apiClient.post('/api/v1/admin/setup/sync-rivernet').then(res => res.data),
-  triggerCacheWarming: () => apiClient.post('/api/v1/admin/setup/warm-cache').then(res => res.data),
-  triggerAlertEvaluation: () => apiClient.post('/api/v1/admin/setup/evaluate-alerts').then(res => res.data),
   getWorkersStatus: () => apiClient.get('/api/v1/admin/setup/workers/status').then(res => res.data),
   runWorker: (workerKey: string, params?: { days?: number }) => apiClient.post(`/api/v1/admin/setup/workers/run/${workerKey}`, null, { params }).then(res => res.data),
   getAiTrainingData: (spatialUnitId: string, days = 365) => apiClient.get('/api/v1/admin/ai-export/training-data', { params: { spatialUnitId, days } }).then(res => res.data),
+
+  // Data Synchronization
+  getSyncStatus: () => apiClient.get('/api/v1/admin/sync/status').then(res => res.data),
+  runSyncJob: (jobName: string) => apiClient.post(`/api/v1/admin/sync/run/${jobName}`).then(res => res.data),
+  resetSyncCooldown: (jobName: string) => apiClient.post(`/api/v1/admin/sync/reset-cooldown/${jobName}`).then(res => res.data),
 };
 
 /* --- Media --- */
