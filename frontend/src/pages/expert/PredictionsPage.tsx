@@ -120,7 +120,7 @@ const PredictionsPage = () => {
         return <div className="text-white p-6">Loading Predictions...</div>;
     }
 
-    const maxLevel = Math.max(basin.current_level, basin.pred_3h, basin.pred_12h);
+    const maxLevel = Math.max(basin.current_level || 0, basin.pred_3h || 0, basin.pred_12h || 0);
     const isCritical = basin.risk_12h === 'Major Flood' || basin.risk_3h === 'Major Flood';
     const isHigh = basin.risk_12h === 'Minor Flood' || basin.risk_3h === 'Minor Flood';
     
@@ -131,20 +131,26 @@ const PredictionsPage = () => {
     else if (isHigh) { riskLevel = 'HIGH'; riskColor = 'text-orange-400'; riskBg = 'bg-orange-500/10 border-orange-500/30'; }
 
     return (
-        <div className="bg-slate-900 text-slate-100 min-h-[calc(100vh-80px)] font-sans">
+        <div className="bg-slate-900 text-slate-100 min-h-[calc(100vh-80px)] font-sans space-y-6">
             {/* Header */}
-            <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-blue-900 p-6 border-b border-purple-700">
-                <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-300 to-cyan-300 flex items-center gap-3">
-                    <TrendingUp size={32} /> Flood Prediction Engine
-                </h1>
-                <p className="text-purple-300/70 mt-1">
-                    AI-powered predictive forecasts combined with historical accuracy evaluation.
-                </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700 pb-4">
+                <div>
+                    <h1 className="text-3xl font-black text-white flex items-center gap-3">
+                        <TrendingUp size={32} className="text-blue-400" /> Flood Prediction Engine
+                    </h1>
+                    <p className="text-slate-400 flex items-center gap-2 mt-1">
+                        <span className="relative flex h-3 w-3">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500" />
+                        </span>
+                        AI-powered predictive forecasts combined with historical accuracy evaluation.
+                    </p>
+                </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-0">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* Left: Station Overview Cards */}
-                <div className="lg:col-span-3 bg-slate-800 border-r border-slate-700 p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-180px)]">
+                <div className="lg:col-span-3 bg-slate-800 border border-slate-700 rounded-xl p-4 space-y-3 overflow-y-auto max-h-[calc(100vh-180px)]">
                     <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-2">Monitored Stations</h3>
 
                     {stations.map((s, i) => {
@@ -168,7 +174,7 @@ const PredictionsPage = () => {
                             </div>
                             <div className="flex gap-3 mt-2 text-[10px] text-slate-500">
                                 <span>Now: <span className="text-slate-300 font-bold">{s.current_level}m</span></span>
-                                <span>Peak: <span className={`font-bold ${sRiskColor}`}>{Math.max(s.current_level, s.pred_3h, s.pred_12h).toFixed(2)}m</span></span>
+                                <span>Peak: <span className={`font-bold ${sRiskColor}`}>{Math.max(s.current_level || 0, s.pred_3h || 0, s.pred_12h || 0).toFixed(2)}m</span></span>
                             </div>
                         </button>
                     )})}
@@ -285,7 +291,7 @@ const PredictionsPage = () => {
                         <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
                             <Thermometer size={14} className="text-orange-400 mx-auto mb-1" />
                             <p className="text-[10px] text-slate-500">+3H Forecast</p>
-                            <p className="text-lg font-black text-orange-300">{basin.pred_3h.toFixed(2)}m</p>
+                            <p className="text-lg font-black text-orange-300">{(basin.pred_3h || 0).toFixed(2)}m</p>
                         </div>
                         <div className="bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-center">
                             <Wind size={14} className="text-slate-400 mx-auto mb-1" />

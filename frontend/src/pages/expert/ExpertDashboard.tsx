@@ -44,11 +44,11 @@ const ExpertDashboard = () => {
     };
 
     return (
-        <div className="bg-slate-900 text-slate-100 min-h-[calc(100vh-80px)] p-6 rounded-xl border border-slate-700 font-sans">
-            <div className="flex justify-between items-center mb-6 border-b border-slate-700 pb-4">
+        <div className="bg-slate-900 text-slate-100 min-h-[calc(100vh-80px)] font-sans space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700 pb-4">
                 <div>
-                    <h1 className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
-                        SIDMS Core Intelligence
+                    <h1 className="text-3xl font-black text-white flex items-center gap-3">
+                        <Activity size={32} className="text-blue-400" /> SIDMS Core Intelligence
                     </h1>
                     <p className="text-slate-400 flex items-center gap-2 mt-1">
                         <span className="relative flex h-3 w-3">

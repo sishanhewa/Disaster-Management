@@ -18,6 +18,18 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+let isRefreshing = false;
+let refreshSubscribers: ((token: string) => void)[] = [];
+
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach((callback) => callback(token));
+  refreshSubscribers = [];
+};
+
+const addRefreshSubscriber = (callback: (token: string) => void) => {
+  refreshSubscribers.push(callback);
+};
+
 // Response Interceptor: handle 401 and refresh token logic
 apiClient.interceptors.response.use(
   (response) => response,
@@ -28,28 +40,44 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      try {
-        // Try refreshing the token
-        const refreshResponse = await axios.post(
-          `${apiClient.defaults.baseURL}/api/v1/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
+      if (!isRefreshing) {
+        isRefreshing = true;
+        try {
+          // Try refreshing the token
+          const refreshResponse = await axios.post(
+            `${apiClient.defaults.baseURL}/api/v1/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
 
-        const newAccessToken = refreshResponse.data.accessToken; // Assumes backend returns { accessToken: "..." }
-        
-        // Update token in store
-        useAuthStore.getState().setToken(newAccessToken);
+          const newAccessToken = refreshResponse.data.accessToken;
+          
+          // Update token in store
+          useAuthStore.getState().setToken(newAccessToken);
 
-        // Update original request auth header
-        originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+          // Update original request auth header
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
 
-        // Retry original request
-        return apiClient(originalRequest);
-      } catch (refreshError) {
-        // Second 401 (refresh failed), clean up and redirect
-        useAuthStore.getState().logout();
-        return Promise.reject(refreshError);
+          isRefreshing = false;
+          onRefreshed(newAccessToken);
+
+          // Retry original request
+          return apiClient(originalRequest);
+        } catch (refreshError) {
+          isRefreshing = false;
+          refreshSubscribers = []; // Clear queue
+          // Second 401 (refresh failed), clean up and redirect
+          useAuthStore.getState().logout();
+          return Promise.reject(refreshError);
+        }
+      } else {
+        // If already refreshing, wait for the refresh to complete
+        return new Promise((resolve) => {
+          addRefreshSubscriber((newToken) => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            resolve(apiClient(originalRequest));
+          });
+        });
       }
     }
 

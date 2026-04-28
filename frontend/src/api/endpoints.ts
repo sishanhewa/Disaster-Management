@@ -253,7 +253,7 @@ const PREDICTION_SERVER = 'http://104.208.67.128:8000';
 export const predictionsApi = {
   getAllStatus: () => axios.get(`${PREDICTION_SERVER}/stations/status/all`).then(res => res.data),
   getHistory: (stationId: number, days = 1) => axios.get(`${PREDICTION_SERVER}/stations/${stationId}/history?days=${days}`).then(res => res.data),
-  getAccuracy: (stationId: number) => axios.get(`${PREDICTION_SERVER}/stations/${stationId}/accuracy/historical?hours=24`).then(res => res.data),
+  getAccuracy: (stationId: number) => axios.get(`${PREDICTION_SERVER}/stations/${stationId}/accuracy?hours=24`).then(res => res.data),
 };
 
 /* --- Relief Needs (SIDMS) --- */

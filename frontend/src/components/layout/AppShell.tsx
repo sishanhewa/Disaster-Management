@@ -27,6 +27,8 @@ import {
   ExternalLink,
   ChevronDown,
   Zap,
+  Users,
+  TrendingUp,
 } from 'lucide-react';
 import { useMarkAllRead, useMarkRead, useNotifications, useUnreadCount } from '../../hooks/useNotifications';
 import { useLocationContextStore } from '../../store/locationContextStore';
@@ -47,6 +49,9 @@ const navigation = [
   { name: 'Guides',     href: '/guides',       icon: BookOpen },
   { name: 'Relief Needs', href: '/relief',     icon: HeartHandshake },
   { name: 'AI Guidance', href: '/guidance', icon: MessageSquare },
+  { name: 'Expert Dashboard', href: '/expert', icon: Globe },
+  { name: 'Prediction Engine', href: '/expert/predictions', icon: TrendingUp },
+  { name: 'Missing Persons', href: '/missing-persons', icon: Users },
 ];
 
 const alertsNav = [
@@ -455,26 +460,6 @@ export default function AppShell() {
                   </div>
                   <span className={`text-sm font-semibold whitespace-nowrap transition-all duration-200 overflow-hidden ${isExpanded ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
                     Camp Manager
-                  </span>
-                </NavLink>
-              )}
-
-              {isUserAdmin && (
-                <NavLink
-                  to="/expert"
-                  className={({ isActive }) =>
-                    `flex items-center h-10 rounded-lg transition-all duration-200 group/nav mt-1 ${
-                      isActive
-                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
-                        : 'text-slate-400 hover:bg-slate-800 hover:text-purple-400 border border-transparent'
-                    }`
-                  }
-                >
-                  <div className="w-10 h-10 flex items-center justify-center shrink-0">
-                    <Globe size={18} />
-                  </div>
-                  <span className={`text-sm font-semibold whitespace-nowrap transition-all duration-200 overflow-hidden ${isExpanded ? 'opacity-100 max-w-xs' : 'opacity-0 max-w-0'}`}>
-                    Expert Systems
                   </span>
                 </NavLink>
               )}
