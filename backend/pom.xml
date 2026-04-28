@@ -224,10 +224,10 @@
 <!--                <artifactId>flyway-maven-plugin</artifactId>-->
 <!--                <version>10.10.0</version>-->
 <!--                <configuration>-->
-<!--                    <url>jdbc:postgresql://104.208.67.128:5432/river_levels_copy</url>-->
+<!--                    <url>jdbc:postgresql://104.208.67.128:5432/river_levels_empty</url>-->
 <!--                    <user>river_user</user>-->
 <!--                    <password>ITP_SE_03</password>-->
-<!--                    <cleanDisabled>false</cleanDisabled>-->
+<!--&lt;!&ndash;                    <cleanDisabled>false</cleanDisabled>&ndash;&gt;-->
 <!--                    <locations>-->
 <!--                        <location>filesystem:src/main/resources/db/migration</location>-->
 <!--                    </locations>-->

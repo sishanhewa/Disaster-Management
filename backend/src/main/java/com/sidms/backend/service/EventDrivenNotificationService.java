@@ -1,18 +1,15 @@
 package com.sidms.backend.service;
 
 import com.sidms.backend.entity.*;
-import com.sidms.backend.entity.enums.DisasterSeverity;
 import com.sidms.backend.repository.*;
 import com.sidms.backend.service.notification.NotificationChannel;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.PostConstruct;
 import jakarta.persistence.EntityManager;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -62,11 +59,18 @@ public class EventDrivenNotificationService {
     private final EntityManager entityManager;
     private TransactionTemplate newTransactionTemplate;
 
-    private static final String JOB_PROCESS_EVENTS = "otification_event_processing";
+    private static final String JOB_PROCESS_EVENTS = "notification_event_processing";
     private static final String JOB_PROCESS_SOS_EVENTS = "sos_event_processing";
     private static final String JOB_RETRY_DELIVERIES = "notification_delivery_retry";
     private static final java.time.Duration COOLDOWN = java.time.Duration.ofMinutes(1);
     private static final java.time.Duration SOS_COOLDOWN = java.time.Duration.ofSeconds(10);
+
+    /**
+     * Result of trigger creation attempt.
+     * @param trigger the trigger (either newly created or existing)
+     * @param created true if this thread successfully created the trigger, false if another thread created it
+     */
+    private record TriggerResult(EventTrigger trigger, boolean created) {}
 
     // -------------------------------------------------------------------------
     // Event Processing (WeatherEvent → Notifications)
@@ -195,8 +199,10 @@ public class EventDrivenNotificationService {
      * @return true if notifications were created, false if deduplicated/skipped
      */
     private boolean processSosEvent(SosEvent event) {
-        // 1. Check deduplication via EventTrigger
+        // 1. Generate hash with null-safe spatial unit handling
         String eventHash = generateSosEventHash(event);
+
+        // 2. Check deduplication via EventTrigger
         boolean isDuplicate = eventTriggerRepository.isTriggerActive(eventHash, LocalDateTime.now(ZoneOffset.UTC));
 
         if (isDuplicate) {
@@ -206,7 +212,7 @@ public class EventDrivenNotificationService {
             return false;
         }
 
-        // 2. Get target responders (admins, responders, volunteers)
+        // 3. Get target responders (admins, responders, volunteers)
         List<User> targetResponders = determineSosTargetResponders(event);
 
         if (targetResponders.isEmpty()) {
@@ -216,10 +222,19 @@ public class EventDrivenNotificationService {
             return false;
         }
 
-        // 3. Create EventTrigger for deduplication
-        EventTrigger trigger = createSosEventTrigger(event, eventHash);
+        // 4. Create EventTrigger atomically - returns result indicating if this thread won the race
+        TriggerResult result = createSosEventTrigger(event, eventHash);
 
-        // 4. Create notifications for each responder
+        // 5. Only create notifications if this thread successfully created the trigger
+        // If another thread won the race, skip notification creation for this event
+        if (!result.created()) {
+            log.debug("[EventDrivenNotification] Another thread processed hash {} for SOS event {}, skipping notifications",
+                    eventHash, event.getId());
+            markSosEventProcessed(event, result.trigger().getId());
+            return false;
+        }
+
+        // 6. Create notifications for each responder
         int notificationCount = 0;
         for (User responder : targetResponders) {
             try {
@@ -231,8 +246,8 @@ public class EventDrivenNotificationService {
             }
         }
 
-        // 5. Mark event as processed
-        markSosEventProcessed(event, trigger.getId());
+        // 7. Mark event as processed
+        markSosEventProcessed(event, result.trigger().getId());
 
         log.info("[EventDrivenNotification] Created {} responder notifications for SOS event {} (incident: {})",
                 notificationCount, event.getId(), event.getIncidentId());
@@ -246,7 +261,7 @@ public class EventDrivenNotificationService {
         sosEventRepository.save(event);
     }
 
-    private EventTrigger createSosEventTrigger(SosEvent event, String hash) {
+    private TriggerResult createSosEventTrigger(SosEvent event, String hash) {
         // SOS events have shorter cooldowns since they're emergencies
         int cooldownHours = switch (event.getStatus()) {
             case PENDING -> 1;  // Retry notifications every hour until assigned
@@ -255,29 +270,36 @@ public class EventDrivenNotificationService {
             case RESOLVED -> 24;
         };
 
-        EventTrigger trigger = EventTrigger.builder()
-                .eventHash(hash)
-                .ruleId(null)  // SOS events don't come from alert rules
-                .eventId(event.getId())
-                .spatialUnitId(event.getSpatialUnitId())
-                .eventType("SOS_" + event.getStatus().name())
-                .triggeredAt(LocalDateTime.now(ZoneOffset.UTC))
-                .expiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(cooldownHours))
-                .triggerValue(null)
-                .triggerThreshold(null)
-                .build();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime expiresAt = now.plusHours(cooldownHours);
 
-        return newTransactionTemplate.execute(status -> {
-            try {
-                EventTrigger saved = eventTriggerRepository.save(trigger);
-                return saved;
-            } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                // Race condition: another thread created the trigger between check and save
-                log.debug("[EventDrivenNotification] Race condition detected for hash {}, fetching existing trigger", hash);
-                return eventTriggerRepository.findByEventHash(hash)
-                        .orElseThrow(() -> new IllegalStateException("Trigger with hash " + hash + " not found after duplicate key exception"));
-            }
-        });
+        // Use atomic upsert to handle race conditions and expired triggers. Returns Optional if inserted/updated, empty if active trigger exists.
+        Optional<UUID> newTriggerId = eventTriggerRepository.insertOrUpdateIfExpired(
+                hash,
+                null,  // SOS events don't come from alert rules
+                event.getId(),
+                event.getSpatialUnitId(),
+                "SOS_" + event.getStatus().name(),
+                now,
+                expiresAt,
+                null,
+                null,
+                now
+        );
+
+        boolean created = newTriggerId.isPresent();
+
+        // Fetch the trigger (either newly created or existing)
+        EventTrigger trigger = eventTriggerRepository.findByEventHash(hash)
+                .orElseThrow(() -> new IllegalStateException("Trigger with hash " + hash + " not found after insert attempt"));
+
+        if (created) {
+            log.debug("[EventDrivenNotification] Created new SOS trigger {} for hash {}", trigger.getId(), hash);
+        } else {
+            log.debug("[EventDrivenNotification] Found existing trigger {} for hash {} (race condition)", trigger.getId(), hash);
+        }
+
+        return new TriggerResult(trigger, created);
     }
 
     private List<User> determineSosTargetResponders(SosEvent event) {
@@ -387,10 +409,16 @@ public class EventDrivenNotificationService {
 
     /**
      * Process a single WeatherEvent.
-     * 
+     *
      * @return true if notifications were created, false if deduplicated/skipped
      */
     private boolean processEvent(WeatherEvent event) {
+        // Fetch rule if applicable
+        AlertRule rule = null;
+        if (event.getSourceRuleId() != null) {
+            rule = alertRuleRepository.findById(event.getSourceRuleId()).orElse(null);
+        }
+
         // 1. Check deduplication via EventTrigger
         String eventHash = generateEventHash(event);
         boolean isDuplicate = eventTriggerRepository.isTriggerActive(eventHash, LocalDateTime.now(ZoneOffset.UTC));
@@ -403,7 +431,7 @@ public class EventDrivenNotificationService {
         }
 
         // 2. Get target users
-        List<User> targetUsers = determineTargetUsers(event);
+        List<User> targetUsers = determineTargetUsers(event, rule);
 
         if (targetUsers.isEmpty()) {
             log.debug("[EventDrivenNotification] No target users for event {}", event.getId());
@@ -411,14 +439,23 @@ public class EventDrivenNotificationService {
             return false;
         }
 
-        // 3. Create EventTrigger for deduplication
-        EventTrigger trigger = createEventTrigger(event, eventHash);
+        // 3. Create EventTrigger atomically - returns result indicating if this thread won the race
+        TriggerResult result = createEventTrigger(event, eventHash);
 
-        // 4. Create notifications for each target user
+        // 4. Only create notifications if this thread successfully created the trigger
+        // If another thread won the race, skip notification creation for this event
+        if (!result.created()) {
+            log.debug("[EventDrivenNotification] Another thread processed hash {} for event {}, skipping notifications",
+                    eventHash, event.getId());
+            markEventProcessed(event, result.trigger().getId());
+            return false;
+        }
+
+        // 5. Create notifications for each target user
         int notificationCount = 0;
         for (User user : targetUsers) {
             try {
-                createNotificationForUser(event, user);
+                createNotificationForUser(event, user, rule);
                 notificationCount++;
             } catch (Exception e) {
                 log.error("[EventDrivenNotification] Failed to create notification for user {}: {}",
@@ -426,8 +463,8 @@ public class EventDrivenNotificationService {
             }
         }
 
-        // 5. Mark event as processed
-        markEventProcessed(event, trigger.getId());
+        // 6. Mark event as processed
+        markEventProcessed(event, result.trigger().getId());
 
         log.info("[EventDrivenNotification] Created {} notifications for event {} (type: {})",
                 notificationCount, event.getId(), event.getEventType());
@@ -443,6 +480,7 @@ public class EventDrivenNotificationService {
 
     private String generateEventHash(WeatherEvent event) {
         String hashInput = String.join("|",
+                event.getSourceRuleId() != null ? event.getSourceRuleId().toString() : "SYSTEM",
                 event.getSpatialUnitId().toString(),
                 event.getEventType(),
                 event.getStartTime().toLocalDate().toString());
@@ -461,8 +499,20 @@ public class EventDrivenNotificationService {
     }
 
     private String generateSosEventHash(SosEvent event) {
+        // Use spatialUnitId if available, otherwise fall back to lat,lng coordinates
+        String locationIdentifier;
+        if (event.getSpatialUnitId() != null) {
+            locationIdentifier = event.getSpatialUnitId().toString();
+        } else if (event.getLatitude() != null && event.getLongitude() != null) {
+            // Use coordinate hash as fallback when spatialUnitId is not resolved
+            locationIdentifier = String.format("%.6f,%.6f", event.getLatitude(), event.getLongitude());
+        } else {
+            // Last resort fallback - should rarely happen
+            locationIdentifier = event.getId().toString();
+        }
+
         String hashInput = String.join("|",
-                event.getSpatialUnitId().toString(),
+                locationIdentifier,
                 "SOS_" + event.getStatus().name(),
                 event.getCreatedAt().toLocalDate().toString());
 
@@ -479,7 +529,7 @@ public class EventDrivenNotificationService {
         }
     }
 
-    private EventTrigger createEventTrigger(WeatherEvent event, String hash) {
+    private TriggerResult createEventTrigger(WeatherEvent event, String hash) {
         int cooldownHours = switch (event.getSeverity()) {
             case EXTREME, CRITICAL -> 3;
             case HIGH -> 6;
@@ -494,38 +544,44 @@ public class EventDrivenNotificationService {
             }
         }
 
-        EventTrigger trigger = EventTrigger.builder()
-                .eventHash(hash)
-                .ruleId(event.getSourceRuleId())
-                .eventId(event.getId())
-                .spatialUnitId(event.getSpatialUnitId())
-                .eventType(event.getEventType())
-                .triggeredAt(LocalDateTime.now(ZoneOffset.UTC))
-                .expiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(cooldownHours))
-                .triggerValue(event.getTriggerValue())
-                .triggerThreshold(event.getTriggerThreshold())
-                .build();
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime expiresAt = now.plusHours(cooldownHours);
 
-        return newTransactionTemplate.execute(status -> {
-            try {
-                return eventTriggerRepository.save(trigger);
-            } catch (org.springframework.dao.DataIntegrityViolationException e) {
-                log.debug("[EventDrivenNotification] Race condition detected for hash {}, fetching existing trigger", hash);
-                return eventTriggerRepository.findByEventHash(hash)
-                        .orElseThrow(() -> new IllegalStateException("Trigger with hash " + hash + " not found after duplicate key exception"));
-            }
-        });
+        // Use atomic upsert to handle race conditions and expired triggers. Returns Optional if inserted/updated, empty if active trigger exists.
+        Optional<UUID> newTriggerId = eventTriggerRepository.insertOrUpdateIfExpired(
+                hash,
+                event.getSourceRuleId(),
+                event.getId(),
+                event.getSpatialUnitId(),
+                event.getEventType(),
+                now,
+                expiresAt,
+                event.getTriggerValue(),
+                event.getTriggerThreshold(),
+                now
+        );
+
+        boolean created = newTriggerId.isPresent();
+
+        // Fetch the trigger (either newly created or existing)
+        EventTrigger trigger = eventTriggerRepository.findByEventHash(hash)
+                .orElseThrow(() -> new IllegalStateException("Trigger with hash " + hash + " not found after insert attempt"));
+
+        if (created) {
+            log.debug("[EventDrivenNotification] Created new trigger {} for hash {}", trigger.getId(), hash);
+        } else {
+            log.debug("[EventDrivenNotification] Found existing trigger {} for hash {} (race condition)", trigger.getId(), hash);
+        }
+
+        return new TriggerResult(trigger, created);
     }
 
-    private List<User> determineTargetUsers(WeatherEvent event) {
+    private List<User> determineTargetUsers(WeatherEvent event, AlertRule rule) {
         // Strategy 1: If event has a source rule, notify only that rule's owner
-        if (event.getSourceRuleId() != null) {
-            Optional<AlertRule> rule = alertRuleRepository.findById(event.getSourceRuleId());
-            if (rule.isPresent()) {
-                Optional<User> user = userRepository.findById(rule.get().getUserId());
-                if (user.isPresent()) {
-                    return List.of(user.get());
-                }
+        if (rule != null) {
+            Optional<User> user = userRepository.findById(rule.getUserId());
+            if (user.isPresent()) {
+                return List.of(user.get());
             }
         }
 
@@ -538,7 +594,7 @@ public class EventDrivenNotificationService {
         return List.of();
     }
 
-    private void createNotificationForUser(WeatherEvent event, User user) {
+    private void createNotificationForUser(WeatherEvent event, User user, AlertRule rule) {
         // 1. Create the notification
         Notification notification = Notification.builder()
                 .userId(user.getId())
@@ -556,7 +612,13 @@ public class EventDrivenNotificationService {
         // 2. Create delivery entries for each enabled channel
         for (NotificationChannel channel : channels) {
             try {
-                if (channel.isEnabledForUser(user)) {
+                // If it's a rule-based event, ensure the channel was requested in the rule
+                boolean requestedByRule = rule == null || 
+                        rule.getChannels() == null || 
+                        rule.getChannels().isEmpty() || 
+                        rule.getChannels().stream().anyMatch(c -> c.equalsIgnoreCase(channel.getChannelType().name()));
+
+                if (requestedByRule && channel.isEnabledForUser(user)) {
                     NotificationDelivery delivery = NotificationDelivery.builder()
                             .notificationId(notification.getId())
                             .userId(user.getId())

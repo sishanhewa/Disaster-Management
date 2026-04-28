@@ -2,6 +2,7 @@ package com.sidms.backend.scheduler;
 
 import com.sidms.backend.entity.ArcgisSensorReading;
 import com.sidms.backend.repository.ArcgisSensorReadingRepository;
+import com.sidms.backend.service.SyncStateService;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,7 +35,11 @@ import java.time.LocalDateTime;
 public class ArcGisSyncScheduler {
 
     private final ArcgisSensorReadingRepository repository;
+    private final SyncStateService syncStateService;
     private final RestTemplate restTemplate = new RestTemplate();
+
+    private static final String JOB_NAME = "arcgis_sync";
+    private static final java.time.Duration COOLDOWN = java.time.Duration.ofMinutes(15);
 
     /** ArcGIS public flood / hydrostation feed (same URL as DM project). */
     private static final String ARCGIS_URL =
@@ -56,6 +61,21 @@ public class ArcGisSyncScheduler {
     // ──────────────────────────────────────────────────────────────────────────
 
     @Scheduled(fixedRate = 900_000)
+    public void scheduledRun() {
+        runWithStateTracking();
+    }
+
+    public void runWithStateTracking() {
+        if (!syncStateService.shouldRun(JOB_NAME, COOLDOWN)) return;
+        try {
+            scrapeArcGisData();
+            syncStateService.recordSuccess(JOB_NAME, COOLDOWN);
+        } catch (Exception e) {
+            log.error("[{}] Sync failed: {}", JOB_NAME, e.getMessage(), e);
+            syncStateService.recordFailure(JOB_NAME, COOLDOWN, e.getMessage());
+        }
+    }
+
     public void scrapeArcGisData() {
         log.info("⏳ ArcGIS sensor data scrape started");
         try {
