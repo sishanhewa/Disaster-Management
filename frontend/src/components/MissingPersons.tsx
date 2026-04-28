@@ -14,11 +14,7 @@ interface MissingPerson {
   imageUrl: string;
 }
 
-<<<<<<< HEAD
-const MOOK_DATA: MissingPerson[] = [
-=======
 const MOCK_DATA: MissingPerson[] = [
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
   {
     id: "1",
     name: "Sunil Perera",
@@ -142,11 +138,7 @@ const MOCK_DATA: MissingPerson[] = [
 ];
 
 export default function MissingPersons() {
-<<<<<<< HEAD
-  const [persons, setPersons] = useState<MissingPerson[]>(MOOK_DATA);
-=======
   const [persons, setPersons] = useState<MissingPerson[]>(MOCK_DATA);
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
   const [searchTerm, setSearchTerm] = useState("");
   const [showForm, setShowForm] = useState(false);
 
@@ -171,24 +163,15 @@ export default function MissingPersons() {
       description: formData.description,
       contactNumber: formData.contactNumber,
       status: 'Missing',
-<<<<<<< HEAD
       imageUrl: `https://i.pravatar.cc/150?u=${Math.random()}`
-=======
-      imageUrl: `https://i.pravatar.cc/150?u=${Math.random()}` 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
     };
     setPersons([newPerson, ...persons]);
     setFormData({ name: "", age: "", gender: "Male", lastSeenLocation: "", dateMissing: "", description: "", contactNumber: "" });
     setShowForm(false);
   };
 
-<<<<<<< HEAD
-  const filteredPersons = persons.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-=======
   const filteredPersons = persons.filter(p =>
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
     p.lastSeenLocation.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
@@ -205,11 +188,7 @@ export default function MissingPersons() {
             Help us reunite families. Browse reported missing persons or submit a new report.
           </p>
         </div>
-<<<<<<< HEAD
-        <button 
-=======
         <button
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
           onClick={() => setShowForm(!showForm)}
           className="bg-pink-600 hover:bg-pink-500 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all shadow-lg shadow-pink-900/20"
         >
@@ -219,25 +198,15 @@ export default function MissingPersons() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-<<<<<<< HEAD
-        
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
         {/* Left Column: List */}
         <div className={`space-y-4 transition-all duration-300 ${showForm ? 'col-span-1 lg:col-span-2' : 'col-span-1 lg:col-span-3'}`}>
           {/* Search */}
           <div className="bg-slate-800 p-4 rounded-xl border border-slate-700 relative">
             <Search className="absolute left-7 top-7 text-slate-400" size={20} />
-<<<<<<< HEAD
-            <input 
-              type="text" 
-              placeholder="Search by name or location..." 
-=======
             <input
               type="text"
               placeholder="Search by name or location..."
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-12 pr-4 py-3 text-white placeholder-slate-500 focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all"
@@ -255,20 +224,12 @@ export default function MissingPersons() {
                     {person.status}
                   </div>
                 </div>
-<<<<<<< HEAD
-                
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
                 <div className="p-5 space-y-3">
                   <h3 className="text-xl font-bold text-white flex items-center gap-2">
                     {person.name}
                   </h3>
-<<<<<<< HEAD
-                  
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
                   <div className="space-y-2 text-sm text-slate-300">
                     <div className="flex items-center gap-2">
                       <User size={16} className="text-slate-500" />
@@ -287,22 +248,14 @@ export default function MissingPersons() {
                       <span>{person.contactNumber}</span>
                     </div>
                   </div>
-<<<<<<< HEAD
-                  
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
                   <div className="pt-3 border-t border-slate-700 text-sm text-slate-400 line-clamp-2">
                     {person.description}
                   </div>
                 </div>
               </div>
             ))}
-<<<<<<< HEAD
-            
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
             {filteredPersons.length === 0 && (
               <div className="col-span-full py-12 text-center text-slate-500 bg-slate-800/50 rounded-xl border border-slate-700 border-dashed">
                 <AlertCircle size={48} className="mx-auto mb-4 text-slate-600" />
@@ -326,11 +279,7 @@ export default function MissingPersons() {
                   <label className="block text-sm font-medium text-slate-400 mb-1">Full Name *</label>
                   <input required name="name" value={formData.name} onChange={handleInputChange} type="text" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. Kasun Silva" />
                 </div>
-<<<<<<< HEAD
-                
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-400 mb-1">Age *</label>
@@ -370,11 +319,7 @@ export default function MissingPersons() {
                   <label className="block text-sm font-medium text-slate-400 mb-1">Contact Number for Info *</label>
                   <input required name="contactNumber" value={formData.contactNumber} onChange={handleInputChange} type="text" className="w-full bg-slate-900 border border-slate-700 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-pink-500 transition-all" placeholder="e.g. 077-1234567" />
                 </div>
-<<<<<<< HEAD
-                
-=======
 
->>>>>>> bca7b13bfb84251a4de4ad6c1ffe2cea177e0b96
                 {/* Photo upload mock */}
                 <div>
                   <label className="block text-sm font-medium text-slate-400 mb-1">Upload Photo (Optional)</label>
