@@ -331,5 +331,5 @@ The backend exposes **31 REST controllers** covering:
 ---
 
 <div align="center">
-  <sub>Built with ❤️ for Sri Lanka's disaster resilience — SIDMS Team 2025</sub>
+  <sub>Built with ❤️ for Sri Lanka's disaster resilience — SE-ITP-03 SLIIT</sub>
 </div>
