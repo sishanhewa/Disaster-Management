@@ -32,6 +32,17 @@ npm-debug.log*
 
 # Documentation (project docs)
 docs/
+*.pdf
+*.docx
+*.doc
+~$*.docx
+final doc/
+github .md
+
+# History Manipulation & Utility Scripts (Root level)
+/*.py
+/*.sh
+cookies.txt
 
 # Java build output
 backend/target/
@@ -48,3 +59,6 @@ script.py
 copilot-instructions.md
 CLAUDE.md
 river-key copy.pem
+force_predict.py
+cookies.txt
+backfill_preds.py
